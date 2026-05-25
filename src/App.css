@@ -1,0 +1,93 @@
+/* Modern Glassmorphic IDE UI */
+:root {
+  --sidebar-bg: rgba(20, 20, 25, 0.7);
+  --panel-bg: rgba(25, 25, 30, 0.8);
+  --border-color: rgba(255, 255, 255, 0.05);
+}
+
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background-color: #0d0d12;
+  overflow: hidden;
+}
+
+.app-container {
+  background: radial-gradient(circle at 50% 0%, #1a1a2e 0%, #0d0d12 100%);
+}
+
+.top-bar {
+  background-color: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+}
+
+.sidebar {
+  background-color: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+}
+
+.file-item {
+  padding: 4px 8px;
+  border-radius: var(--radius-2);
+  cursor: pointer;
+  color: var(--gray-11);
+  transition: background-color 0.2s;
+}
+
+.file-item:hover {
+  background-color: var(--gray-a3);
+  color: var(--gray-12);
+}
+
+.file-item.active {
+  background-color: var(--accent-a3);
+  color: var(--accent-11);
+}
+
+.editor-tabs {
+  background-color: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tab {
+  padding: 4px 16px;
+  background-color: var(--sidebar-bg);
+  border-radius: var(--radius-2) var(--radius-2) 0 0;
+  cursor: pointer;
+  border-top: 2px solid transparent;
+}
+
+.tab.active {
+  background-color: transparent;
+  border-top-color: var(--accent-9);
+  color: var(--accent-11);
+}
+
+.editor-container {
+  background-color: rgba(10, 10, 15, 0.9);
+}
+
+.bottom-panel {
+  background-color: var(--panel-bg);
+  border-top: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+}
+
+.panel-header {
+  background-color: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.breakpoint-glyph {
+  background: #ff453a !important;
+  border-radius: 50% !important;
+  width: 10px !important;
+  height: 10px !important;
+  margin-left: 8px !important;
+  box-shadow: 0 0 8px #ff453a !important;
+  cursor: pointer;
+}
+
