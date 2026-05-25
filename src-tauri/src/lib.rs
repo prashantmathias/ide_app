@@ -143,37 +143,51 @@ where
     });
 }
 
-fn command_available(command: &str) -> bool {
+fn command_available(command: &str, args: &[&str]) -> bool {
     Command::new(command)
-        .arg("--version")
+        .args(args)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
-        .is_ok()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Windows often exposes a WSL `bash` stub that passes `--version` but cannot run in a PTY.
+#[cfg(windows)]
+fn windows_usable_bash() -> bool {
+    command_available("bash", &["-c", "exit 0"])
 }
 
 fn default_shell_command() -> CommandBuilder {
     #[cfg(windows)]
     {
-        if command_available("bash") {
-            let mut cmd = CommandBuilder::new("bash");
-            cmd.arg("-i");
-            return cmd;
-        }
-
-        if command_available("pwsh") {
+        if command_available("pwsh", &["-NoLogo", "-Command", "exit 0"]) {
             let mut cmd = CommandBuilder::new("pwsh");
             cmd.arg("-NoLogo");
             return cmd;
         }
 
+        if windows_usable_bash() {
+            let mut cmd = CommandBuilder::new("bash");
+            cmd.arg("-i");
+            return cmd;
+        }
+
         let mut cmd = CommandBuilder::new("powershell.exe");
         cmd.arg("-NoLogo");
+        cmd.arg("-NoExit");
         cmd
     }
 
     #[cfg(not(windows))]
     {
+        if command_available("bash", &["--version"]) {
+            let mut cmd = CommandBuilder::new("bash");
+            cmd.arg("-i");
+            return cmd;
+        }
+
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
         let mut cmd = CommandBuilder::new(shell);
         cmd.arg("-i");

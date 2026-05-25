@@ -38,9 +38,26 @@ export default function DenoTerminal() {
 
     terminal.writeln("Starting unrestricted shell...");
 
+    let shellStarted = false;
+
+    const startShell = () => {
+      if (shellStarted) return;
+      fitAddon.fit();
+      if (terminal.rows < 2 || terminal.cols < 2) return;
+
+      shellStarted = true;
+      void invoke("start_terminal_shell", { rows: terminal.rows, cols: terminal.cols }).catch((error) => {
+        shellStarted = false;
+        terminal.writeln(`\x1b[31mFailed to start shell: ${String(error)}\x1b[0m`);
+      });
+    };
+
     const resizeTerminal = () => {
       fitAddon.fit();
-      void invoke("resize_terminal", { rows: terminal.rows, cols: terminal.cols });
+      startShell();
+      if (runningRef.current) {
+        void invoke("resize_terminal", { rows: terminal.rows, cols: terminal.cols });
+      }
     };
 
     const resizeObserver = new ResizeObserver(resizeTerminal);
@@ -62,10 +79,12 @@ export default function DenoTerminal() {
     const unlistenExit = listen<string>("terminal-exit", () => {
       runningRef.current = false;
       setIsRunning(false);
+      shellStarted = false;
+      terminal.writeln("\x1b[33mShell stopped. Resize the panel or restart the app to reconnect.\x1b[0m");
     });
 
-    void invoke("start_terminal_shell", { rows: terminal.rows, cols: terminal.cols }).catch((error) => {
-      terminal.writeln(`\x1b[31m${String(error)}\x1b[0m`);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(startShell);
     });
 
     return () => {
