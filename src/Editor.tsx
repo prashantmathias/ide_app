@@ -6,15 +6,18 @@ export default function Editor({
   file,
   breakpoints,
   onToggleBreakpoint,
+  currentLine,
 }: {
   file: string;
   breakpoints: number[];
   onToggleBreakpoint: (line: number) => void;
+  currentLine: number | null;
 }) {
   const monaco = useMonaco();
   const [code, setCode] = useState('console.log("Hello from Deno!");\n\n// Try Deno APIs:\n// Deno.readTextFileSync("main.ts")\n');
   const [editorInstance, setEditorInstance] = useState<any>(null);
   const decorationsRef = useRef<any>(null);
+  const currentLineDecRef = useRef<any>(null);
   const toggleBreakpointRef = useRef(onToggleBreakpoint);
 
   // Keep the ref current so the mouseDown handler always uses the latest callback
@@ -67,6 +70,29 @@ export default function Editor({
     }
     decorationsRef.current.set(newDecorations);
   }, [breakpoints, editorInstance, monaco]);
+
+  // Current execution line highlight
+  useEffect(() => {
+    if (!editorInstance || !monaco) return;
+
+    if (!currentLineDecRef.current) {
+      currentLineDecRef.current = editorInstance.createDecorationsCollection([]);
+    }
+
+    if (currentLine !== null) {
+      currentLineDecRef.current.set([{
+        range: new monaco.Range(currentLine, 1, currentLine, 1),
+        options: {
+          isWholeLine: true,
+          className: "debug-current-line",
+          glyphMarginClassName: "debug-current-line-glyph",
+        },
+      }]);
+      editorInstance.revealLineInCenter(currentLine);
+    } else {
+      currentLineDecRef.current.set([]);
+    }
+  }, [currentLine, editorInstance, monaco]);
 
   const handleEditorDidMount = useCallback((editor: any, monacoInst: any) => {
     setEditorInstance(editor);

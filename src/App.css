@@ -91,3 +91,77 @@ body, html {
   cursor: pointer;
 }
 
+/* Current execution line highlight */
+.debug-current-line {
+  background-color: rgba(255, 214, 0, 0.12) !important;
+  border-left: 3px solid #ffd600 !important;
+}
+
+.debug-current-line-glyph {
+  background: #ffd600 !important;
+  border-radius: 2px !important;
+  width: 6px !important;
+  height: 16px !important;
+  margin-left: 10px !important;
+}
+
+/* Debug Side Panel */
+.debug-panel {
+  background-color: var(--sidebar-bg);
+  border-left: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+  overflow-y: auto;
+}
+
+.debug-section-header {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.debug-variable-row {
+  border-radius: 4px;
+  transition: background-color 0.15s;
+}
+
+.debug-variable-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.debug-stack-frame {
+  border-radius: 4px;
+  border-left: 2px solid transparent;
+  transition: background-color 0.15s;
+}
+
+.debug-stack-frame:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.debug-stack-frame.active {
+  border-left-color: var(--amber-9);
+  background-color: rgba(255, 214, 0, 0.06);
+}
+
+/* Resize Handles */
+.resize-handle {
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+  background: transparent;
+  transition: background-color 0.15s;
+}
+
+.resize-h {
+  width: 5px;
+  min-width: 5px;
+}
+
+.resize-v {
+  height: 5px;
+  min-height: 5px;
+}
+
+.resize-handle:hover,
+.resize-handle.active {
+  background-color: var(--accent-9);
+}
