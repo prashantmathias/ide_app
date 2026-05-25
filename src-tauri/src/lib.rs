@@ -2,10 +2,12 @@ use serde::Serialize;
 use std::{
     fs,
     io::{Read, Write},
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
     sync::{Arc, Mutex, OnceLock},
     time::Duration,
 };
+
+use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 
 #[derive(Serialize)]
 struct FileInfo {
@@ -15,7 +17,9 @@ struct FileInfo {
 }
 
 struct TerminalProcess {
-    child: Arc<Mutex<Child>>,
+    child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
+    master: Arc<Mutex<Box<dyn MasterPty + Send>>>,
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
 }
 
 static TERMINAL_PROCESS: OnceLock<Mutex<Option<TerminalProcess>>> = OnceLock::new();
@@ -113,58 +117,6 @@ fn run_deno(app: tauri::AppHandle, path: &str, inspect: bool) -> Result<(), Stri
     Ok(())
 }
 
-fn parse_deno_command(command: &str) -> Result<Vec<String>, String> {
-    let trimmed = command.trim();
-    if trimmed.is_empty() {
-        return Err("Enter a deno command.".to_string());
-    }
-
-    if trimmed
-        .chars()
-        .any(|c| matches!(c, ';' | '&' | '|' | '<' | '>' | '`'))
-    {
-        return Err("Shell operators are disabled. Run one deno command at a time.".to_string());
-    }
-
-    let mut args = Vec::new();
-    let mut current = String::new();
-    let mut chars = trimmed.chars().peekable();
-    let mut quote: Option<char> = None;
-
-    while let Some(ch) = chars.next() {
-        match (ch, quote) {
-            ('\'' | '"', None) => quote = Some(ch),
-            (c, Some(q)) if c == q => quote = None,
-            ('\\', Some('"')) => {
-                if let Some(next) = chars.next() {
-                    current.push(next);
-                }
-            }
-            (c, None) if c.is_whitespace() => {
-                if !current.is_empty() {
-                    args.push(current);
-                    current = String::new();
-                }
-            }
-            (c, _) => current.push(c),
-        }
-    }
-
-    if quote.is_some() {
-        return Err("Unclosed quote in command.".to_string());
-    }
-
-    if !current.is_empty() {
-        args.push(current);
-    }
-
-    if args.first().map(|arg| arg.as_str()) != Some("deno") {
-        return Err("Only deno commands are allowed. Try: deno run main.ts".to_string());
-    }
-
-    Ok(args)
-}
-
 fn emit_reader<R>(app: tauri::AppHandle, mut reader: R, is_stderr: bool)
 where
     R: Read + Send + 'static,
@@ -191,11 +143,48 @@ where
     });
 }
 
+fn command_available(command: &str) -> bool {
+    Command::new(command)
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok()
+}
+
+fn default_shell_command() -> CommandBuilder {
+    #[cfg(windows)]
+    {
+        if command_available("bash") {
+            let mut cmd = CommandBuilder::new("bash");
+            cmd.arg("-i");
+            return cmd;
+        }
+
+        if command_available("pwsh") {
+            let mut cmd = CommandBuilder::new("pwsh");
+            cmd.arg("-NoLogo");
+            return cmd;
+        }
+
+        let mut cmd = CommandBuilder::new("powershell.exe");
+        cmd.arg("-NoLogo");
+        cmd
+    }
+
+    #[cfg(not(windows))]
+    {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+        let mut cmd = CommandBuilder::new(shell);
+        cmd.arg("-i");
+        cmd
+    }
+}
+
 #[tauri::command]
-fn run_terminal_command(app: tauri::AppHandle, command: &str) -> Result<(), String> {
+fn start_terminal_shell(app: tauri::AppHandle, rows: u16, cols: u16) -> Result<(), String> {
     use tauri::Emitter;
 
-    let args = parse_deno_command(command)?;
     let mut state = terminal_process().lock().map_err(|e| e.to_string())?;
 
     if let Some(process) = state.as_ref() {
@@ -207,34 +196,41 @@ fn run_terminal_command(app: tauri::AppHandle, command: &str) -> Result<(), Stri
             .map_err(|e| e.to_string())?
             .is_none()
         {
-            return Err(
-                "A Deno command is already running. Stop it before starting another.".to_string(),
-            );
+            return Ok(());
         }
     }
 
-    let mut child = Command::new(&args[0])
-        .args(&args[1..])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to start deno: {e}"))?;
+    let pty_system = native_pty_system();
+    let pair = pty_system
+        .openpty(PtySize {
+            rows: rows.max(1),
+            cols: cols.max(1),
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| e.to_string())?;
 
-    if let Some(stdout) = child.stdout.take() {
-        emit_reader(app.clone(), stdout, false);
+    let mut cmd = default_shell_command();
+    if let Ok(cwd) = std::env::current_dir() {
+        cmd.cwd(cwd);
     }
 
-    if let Some(stderr) = child.stderr.take() {
-        emit_reader(app.clone(), stderr, true);
-    }
-
+    let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
+    let reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     let child = Arc::new(Mutex::new(child));
+    let master = Arc::new(Mutex::new(pair.master));
+
+    emit_reader(app.clone(), reader, false);
+
     *state = Some(TerminalProcess {
         child: Arc::clone(&child),
+        master,
+        writer: Arc::new(Mutex::new(writer)),
     });
     drop(state);
 
+    let _ = app.emit("terminal-ready", ());
     std::thread::spawn(move || loop {
         let status_result = {
             let mut child = match child.lock() {
@@ -246,13 +242,10 @@ fn run_terminal_command(app: tauri::AppHandle, command: &str) -> Result<(), Stri
 
         match status_result {
             Ok(Some(status)) => {
-                let code = status
-                    .code()
-                    .map(|code| code.to_string())
-                    .unwrap_or_else(|| "terminated".to_string());
+                let code = status.exit_code().to_string();
                 let _ = app.emit(
                     "terminal-output",
-                    format!("\r\n[deno exited with {code}]\r\n"),
+                    format!("\r\n[shell exited with {code}]\r\n"),
                 );
                 let _ = app.emit("terminal-exit", code);
 
@@ -281,18 +274,32 @@ fn run_terminal_command(app: tauri::AppHandle, command: &str) -> Result<(), Stri
 fn send_terminal_input(data: &str) -> Result<(), String> {
     let mut state = terminal_process().lock().map_err(|e| e.to_string())?;
     let Some(process) = state.as_mut() else {
-        return Err("No Deno process is running.".to_string());
+        return Err("No shell is running.".to_string());
     };
 
-    let mut child = process.child.lock().map_err(|e| e.to_string())?;
-    let Some(stdin) = child.stdin.as_mut() else {
-        return Err("The running Deno process is not accepting input.".to_string());
-    };
-
-    stdin
+    let mut writer = process.writer.lock().map_err(|e| e.to_string())?;
+    writer
         .write_all(data.as_bytes())
         .map_err(|e| e.to_string())?;
-    stdin.flush().map_err(|e| e.to_string())
+    writer.flush().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn resize_terminal(rows: u16, cols: u16) -> Result<(), String> {
+    let state = terminal_process().lock().map_err(|e| e.to_string())?;
+    let Some(process) = state.as_ref() else {
+        return Ok(());
+    };
+
+    let master = process.master.lock().map_err(|e| e.to_string())?;
+    master
+        .resize(PtySize {
+            rows: rows.max(1),
+            cols: cols.max(1),
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -316,8 +323,9 @@ pub fn run() {
             save_file,
             get_deno_types,
             run_deno,
-            run_terminal_command,
+            start_terminal_shell,
             send_terminal_input,
+            resize_terminal,
             stop_terminal_command
         ])
         .run(tauri::generate_context!())
