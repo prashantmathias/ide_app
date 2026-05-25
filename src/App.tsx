@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import Editor from "./Editor";
 import DebugPanel, { DebugCallFrame, DebugVariable } from "./DebugPanel";
+import DenoTerminal from "./DenoTerminal";
 import ResizeHandle from "./ResizeHandle";
 import { debuggerInstance } from "./debugger";
 import "./App.css";
@@ -19,6 +20,7 @@ function App() {
   const [pausedLine, setPausedLine] = useState<number | null>(null);
   const [callFrames, setCallFrames] = useState<DebugCallFrame[]>([]);
   const [debugVariables, setDebugVariables] = useState<DebugVariable[]>([]);
+  const [activeBottomTab, setActiveBottomTab] = useState<"terminal" | "output">("terminal");
   
   const breakpointsRef = useRef<number[]>([]);
 
@@ -135,6 +137,7 @@ function App() {
 
   const handleRun = async () => {
     setConsoleOutput(["$ Running main.ts..."]);
+    setActiveBottomTab("output");
     setIsDebugging(false);
     debuggerInstance.disconnect();
     setActiveBreakpointIds({});
@@ -147,6 +150,7 @@ function App() {
 
   const handleDebug = async () => {
     setConsoleOutput(["$ Debugging main.ts..."]);
+    setActiveBottomTab("output");
     try {
       await invoke("run_deno", { path: activeFile, inspect: true });
     } catch (e) {
@@ -255,17 +259,37 @@ function App() {
           {/* Bottom Panel (Terminal/Console) */}
           <Box className="bottom-panel" style={{ display: 'flex', flexDirection: 'column', height: bottomPanelHeight, minHeight: bottomPanelHeight, flexShrink: 0 }}>
             <Flex className="panel-header" px="3" py="1" align="center" gap="2">
-              <Terminal size={14} /> <Text size="2" weight="bold">Console</Text>
+              <Button
+                size="1"
+                variant={activeBottomTab === "terminal" ? "soft" : "ghost"}
+                onClick={() => setActiveBottomTab("terminal")}
+                style={{ cursor: "pointer" }}
+              >
+                <Terminal size={14} /> Terminal
+              </Button>
+              <Button
+                size="1"
+                variant={activeBottomTab === "output" ? "soft" : "ghost"}
+                onClick={() => setActiveBottomTab("output")}
+                style={{ cursor: "pointer" }}
+              >
+                Output
+              </Button>
             </Flex>
-            <ScrollArea style={{ flex: 1, padding: "12px" }}>
-              <Flex direction="column" gap="1">
-                {consoleOutput.map((line, i) => (
-                  <Text key={i} size="2" style={{ fontFamily: "monospace", color: line.startsWith("ERROR") ? "var(--tomato-11)" : "var(--gray-11)" }}>
-                    {line}
-                  </Text>
-                ))}
-              </Flex>
-            </ScrollArea>
+            <Box style={{ display: activeBottomTab === "terminal" ? "flex" : "none", flex: 1, minHeight: 0 }}>
+              <DenoTerminal />
+            </Box>
+            <Box style={{ display: activeBottomTab === "output" ? "flex" : "none", flex: 1, minHeight: 0 }}>
+              <ScrollArea style={{ flex: 1, padding: "12px" }}>
+                <Flex direction="column" gap="1">
+                  {consoleOutput.map((line, i) => (
+                    <Text key={i} size="2" style={{ fontFamily: "monospace", color: line.startsWith("ERROR") ? "var(--tomato-11)" : "var(--gray-11)" }}>
+                      {line}
+                    </Text>
+                  ))}
+                </Flex>
+              </ScrollArea>
+            </Box>
           </Box>
         </Flex>
 

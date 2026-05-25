@@ -81,6 +81,26 @@ body, html {
   border-bottom: 1px solid var(--border-color);
 }
 
+.terminal-toolbar {
+  background-color: rgba(255, 255, 255, 0.015);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.terminal-host {
+  flex: 1;
+  min-height: 0;
+  padding: 8px;
+  background-color: #0b0d12;
+}
+
+.terminal-host .xterm {
+  height: 100%;
+}
+
+.terminal-host .xterm-viewport {
+  overflow-y: auto;
+}
+
 .breakpoint-glyph {
   background: #ff453a !important;
   border-radius: 50% !important;
