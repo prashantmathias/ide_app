@@ -2,16 +2,24 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import MonacoEditor, { useMonaco } from "@monaco-editor/react";
 import { invoke } from "@tauri-apps/api/core";
 
+export interface EditorMethods {
+  insertText: (text: string) => void;
+  replaceContent: (content: string) => void;
+  getValue: () => string;
+}
+
 export default function Editor({
   file,
   breakpoints,
   onToggleBreakpoint,
   currentLine,
+  onEditorReady,
 }: {
   file: string;
   breakpoints: number[];
   onToggleBreakpoint: (line: number) => void;
   currentLine: number | null;
+  onEditorReady?: (methods: EditorMethods) => void;
 }) {
   const monaco = useMonaco();
   const [code, setCode] = useState('console.log("Hello from Deno!");\n\n// Try Deno APIs:\n// Deno.readTextFileSync("main.ts")\n');
@@ -93,6 +101,36 @@ export default function Editor({
       currentLineDecRef.current.set([]);
     }
   }, [currentLine, editorInstance, monaco]);
+  
+  useEffect(() => {
+    if (editorInstance && monaco && onEditorReady) {
+      onEditorReady({
+        insertText: (text: string) => {
+          const selection = editorInstance.getSelection();
+          const range = selection 
+            ? new monaco.Range(
+                selection.startLineNumber,
+                selection.startColumn,
+                selection.endLineNumber,
+                selection.endColumn
+              )
+            : editorInstance.getPosition();
+          
+          editorInstance.executeEdits("ai-agent", [{
+            range: range,
+            text: text,
+            forceMoveMarkers: true
+          }]);
+        },
+        replaceContent: (content: string) => {
+          editorInstance.setValue(content);
+        },
+        getValue: () => {
+          return editorInstance.getValue();
+        }
+      });
+    }
+  }, [editorInstance, monaco, onEditorReady]);
 
   const handleEditorDidMount = useCallback((editor: any, monacoInst: any) => {
     setEditorInstance(editor);

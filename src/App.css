@@ -185,3 +185,78 @@ body, html {
 .resize-handle.active {
   background-color: var(--accent-9);
 }
+
+/* AI Copilot Side Panel Styles */
+.ai-panel {
+  background-color: var(--sidebar-bg);
+  border-left: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+}
+
+.ai-pulse-dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--accent-9);
+  border-radius: 50%;
+  animation: ai-pulse 1.5s infinite ease-in-out;
+  box-shadow: 0 0 8px var(--accent-9);
+}
+
+@keyframes ai-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 12px var(--accent-9);
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+}
+
+.chat-bubble {
+  word-break: break-word;
+  transition: all 0.2s ease-in-out;
+}
+
+.chat-bubble.user {
+  background-color: rgba(0, 122, 255, 0.1) !important;
+  border: 1px solid rgba(0, 122, 255, 0.2) !important;
+}
+
+.chat-bubble.assistant {
+  background-color: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.ai-code-card {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.2s;
+}
+
+.ai-code-card:hover {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+.ai-code-card pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.ai-code-card pre::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.ai-code-card pre::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.ai-code-card pre::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

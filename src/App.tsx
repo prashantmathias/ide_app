@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Box, Flex, Text, Button, ScrollArea } from "@radix-ui/themes";
-import { Play, Bug, File, Terminal, FastForward, StepForward } from "lucide-react";
+import { Play, Bug, File, Terminal, FastForward, StepForward, Sparkles } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import Editor from "./Editor";
+import Editor, { EditorMethods } from "./Editor";
 import DebugPanel, { DebugCallFrame, DebugVariable } from "./DebugPanel";
 import DenoTerminal from "./DenoTerminal";
 import ResizeHandle from "./ResizeHandle";
 import { debuggerInstance } from "./debugger";
+import AIPanel from "./AIPanel";
 import "./App.css";
 
 function App() {
@@ -28,6 +29,9 @@ function App() {
   const [sidebarWidth, setSidebarWidth] = useState(220);
   const [bottomPanelHeight, setBottomPanelHeight] = useState(180);
   const [debugPanelWidth, setDebugPanelWidth] = useState(280);
+  const [aiPanelWidth, setAiPanelWidth] = useState(350);
+  const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
+  const [editorMethods, setEditorMethods] = useState<EditorMethods | null>(null);
 
   const handleSidebarResize = useCallback((delta: number) => {
     setSidebarWidth((w) => Math.max(120, Math.min(500, w + delta)));
@@ -39,6 +43,10 @@ function App() {
 
   const handleDebugPanelResize = useCallback((delta: number) => {
     setDebugPanelWidth((w) => Math.max(180, Math.min(500, w - delta)));
+  }, []);
+
+  const handleAIPanelResize = useCallback((delta: number) => {
+    setAiPanelWidth((w) => Math.max(250, Math.min(600, w - delta)));
   }, []);
   
   useEffect(() => {
@@ -219,6 +227,15 @@ function App() {
           <Button variant="soft" color="tomato" size="2" style={{ cursor: "pointer" }} onClick={handleDebug}>
             <Bug size={16} /> Debug
           </Button>
+          <Button
+            variant={isAIPanelOpen ? "solid" : "soft"}
+            color="indigo"
+            size="2"
+            style={{ cursor: "pointer" }}
+            onClick={() => setIsAIPanelOpen(!isAIPanelOpen)}
+          >
+            <Sparkles size={16} /> AI Copilot
+          </Button>
         </Flex>
       </Flex>
 
@@ -251,6 +268,7 @@ function App() {
               breakpoints={breakpoints}
               onToggleBreakpoint={handleToggleBreakpoint}
               currentLine={pausedLine}
+              onEditorReady={setEditorMethods}
             />
           </Box>
 
@@ -302,6 +320,22 @@ function App() {
               callFrames={callFrames}
               variables={debugVariables}
               width={debugPanelWidth}
+            />
+          </>
+        )}
+
+        {/* AI Copilot Panel */}
+        {isAIPanelOpen && (
+          <>
+            <ResizeHandle direction="horizontal" onResize={handleAIPanelResize} />
+            <AIPanel
+              activeFile={activeFile}
+              activeFileContent={editorMethods?.getValue() || ""}
+              consoleLogs={consoleOutput}
+              onInsertText={(text) => editorMethods?.insertText(text)}
+              onReplaceContent={(content) => editorMethods?.replaceContent(content)}
+              onClose={() => setIsAIPanelOpen(false)}
+              width={aiPanelWidth}
             />
           </>
         )}
