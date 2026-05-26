@@ -1,0 +1,19 @@
+{
+  "name": "projects/6637499048789868383",
+  "projectId": "6637499048789868383",
+  "title": "Modern Code Studio",
+  "visibility": "PRIVATE",
+  "projectType": "TEXT_TO_UI_PRO",
+  "origin": "STITCH",
+  "deviceType": "DESKTOP",
+  "screens": {
+    "editor": {
+      "id": "eee4c327d8824b6eb706ce0f0d56e0ac",
+      "sourceScreen": "projects/6637499048789868383/screens/eee4c327d8824b6eb706ce0f0d56e0ac",
+      "x": 1024,
+      "y": 0,
+      "width": 1280,
+      "height": 1024
+    }
+  }
+}

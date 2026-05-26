@@ -32,8 +32,8 @@ export default function DebugPanel({
       {/* Variables Section */}
       <Flex direction="column" gap="1" mb="4">
         <Flex align="center" gap="2" className="debug-section-header" mb="1">
-          <Variable size={14} />
-          <Text size="2" weight="bold" style={{ color: "var(--amber-11)" }}>
+          <Variable size={14} style={{ color: "var(--tertiary)" }} />
+          <Text size="2" weight="bold" style={{ color: "var(--tertiary)" }}>
             VARIABLES
           </Text>
         </Flex>
@@ -56,20 +56,20 @@ export default function DebugPanel({
                   <Text
                     size="1"
                     weight="medium"
-                    style={{ color: "var(--cyan-11)", fontFamily: "monospace", minWidth: 80 }}
+                    style={{ color: "var(--primary)", fontFamily: "monospace", minWidth: 80 }}
                   >
                     {v.name}
                   </Text>
                   <Text
                     size="1"
-                    style={{ color: "var(--gray-9)", fontFamily: "monospace" }}
+                    style={{ color: "var(--on-surface-variant)", fontFamily: "monospace" }}
                   >
                     {v.type}
                   </Text>
                   <Text
                     size="1"
                     style={{
-                      color: "var(--gray-12)",
+                      color: "var(--on-surface)",
                       fontFamily: "monospace",
                       marginLeft: "auto",
                       maxWidth: 120,
@@ -91,8 +91,8 @@ export default function DebugPanel({
       {/* Call Stack Section */}
       <Flex direction="column" gap="1">
         <Flex align="center" gap="2" className="debug-section-header" mb="1">
-          <Layers size={14} />
-          <Text size="2" weight="bold" style={{ color: "var(--amber-11)" }}>
+          <Layers size={14} style={{ color: "var(--tertiary)" }} />
+          <Text size="2" weight="bold" style={{ color: "var(--tertiary)" }}>
             CALL STACK
           </Text>
         </Flex>
@@ -114,11 +114,11 @@ export default function DebugPanel({
                   <Text
                     size="1"
                     weight="medium"
-                    style={{ color: i === 0 ? "var(--amber-11)" : "var(--gray-11)", fontFamily: "monospace" }}
+                    style={{ color: i === 0 ? "var(--tertiary)" : "var(--on-surface)", fontFamily: "monospace" }}
                   >
                     {frame.functionName || "(anonymous)"}
                   </Text>
-                  <Text size="1" style={{ color: "var(--gray-9)", fontFamily: "monospace" }}>
+                  <Text size="1" style={{ color: "var(--on-surface-variant)", fontFamily: "monospace" }}>
                     line {frame.lineNumber}:{frame.columnNumber}
                   </Text>
                 </Flex>

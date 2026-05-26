@@ -497,14 +497,14 @@ export default function AIPanel({
             align="center"
             gap="2"
             style={{
-              background: "rgba(0, 0, 0, 0.2)",
+              background: "var(--surface-lowest)",
               padding: "6px 10px",
               borderRadius: "6px",
-              border: "1px solid rgba(255, 255, 255, 0.05)",
+              border: "1px solid var(--border-color)",
             }}
           >
-            <Wrench size={12} style={{ color: "var(--amber-9)" }} />
-            <Text size="1" weight="bold" style={{ color: "var(--amber-11)" }}>
+            <Wrench size={12} style={{ color: "var(--tertiary)" }} />
+            <Text size="1" weight="bold" style={{ color: "var(--tertiary)" }}>
               Tool executed: {msg.name}
             </Text>
             <IconButton
@@ -521,13 +521,13 @@ export default function AIPanel({
               style={{
                 margin: 0,
                 padding: "8px",
-                background: "rgba(0, 0, 0, 0.5)",
-                border: "1px solid rgba(255, 255, 255, 0.05)",
+                background: "var(--surface-container-lowest)",
+                border: "1px solid var(--border-color)",
                 borderRadius: "4px",
                 overflowX: "auto",
                 fontSize: "11px",
                 fontFamily: "monospace",
-                color: "#a5b4fc",
+                color: "var(--primary)",
                 maxHeight: "150px",
                 overflowY: "auto",
               }}
@@ -696,9 +696,6 @@ export default function AIPanel({
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        borderLeft: "1px solid var(--border-color)",
-        backgroundColor: "var(--sidebar-bg)",
-        backdropFilter: "blur(10px)",
       }}
     >
       {/* Panel Header */}
@@ -711,7 +708,7 @@ export default function AIPanel({
         style={{ borderBottom: "1px solid var(--border-color)" }}
       >
         <Flex align="center" gap="2">
-          <Sparkles size={16} style={{ color: "var(--accent-9)" }} />
+          <Sparkles size={16} style={{ color: "var(--primary)" }} />
           <Text size="2" weight="bold">
             AI Agent Copilot
           </Text>
@@ -737,8 +734,8 @@ export default function AIPanel({
       {showSettings && (
         <Card
           style={{
-            background: "rgba(20, 20, 25, 0.95)",
-            border: "1px solid var(--accent-5)",
+            background: "var(--surface-container)",
+            border: "1px solid var(--border-color)",
             padding: "12px",
             margin: "12px",
           }}
@@ -868,17 +865,17 @@ export default function AIPanel({
                       backgroundColor: msg.is_tool_status
                         ? "transparent"
                         : msg.role === "user"
-                        ? "rgba(0, 122, 255, 0.15)"
+                        ? "rgba(162, 201, 255, 0.08)"
                         : msg.role === "tool"
-                        ? "rgba(245, 158, 11, 0.05)"
-                        : "rgba(255, 255, 255, 0.03)",
+                        ? "rgba(250, 188, 69, 0.05)"
+                        : "var(--surface-container-low)",
                       border: msg.is_tool_status
                         ? "none"
                         : msg.role === "user"
-                        ? "1px solid rgba(0, 122, 255, 0.25)"
+                        ? "1px solid rgba(162, 201, 255, 0.15)"
                         : msg.role === "tool"
-                        ? "1px solid rgba(245, 158, 11, 0.15)"
-                        : "1px solid rgba(255, 255, 255, 0.05)",
+                        ? "1px solid rgba(250, 188, 69, 0.1)"
+                        : "1px solid var(--border-color)",
                       boxShadow: msg.is_tool_status ? "none" : "0 4px 12px rgba(0,0,0,0.1)",
                     }}
                   >
@@ -959,7 +956,7 @@ export default function AIPanel({
           </Flex>
 
           {/* Input Panel */}
-          <Box p="3" style={{ borderTop: "1px solid var(--border-color)", background: "var(--panel-bg)" }}>
+          <Box p="3" style={{ borderTop: "1px solid var(--border-color)", background: "var(--surface-container)" }}>
             <Flex gap="2" align="end">
               <textarea
                 value={input}
@@ -970,10 +967,10 @@ export default function AIPanel({
                 disabled={isLoading}
                 style={{
                   flex: 1,
-                  backgroundColor: "rgba(0, 0, 0, 0.3)",
-                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  backgroundColor: "var(--surface-container-lowest)",
+                  border: "1px solid var(--border-color)",
                   borderRadius: "6px",
-                  color: "white",
+                  color: "var(--on-surface)",
                   fontSize: "13px",
                   padding: "8px",
                   resize: "none",
@@ -989,7 +986,8 @@ export default function AIPanel({
                   cursor: "pointer",
                   height: "36px",
                   width: "36px",
-                  backgroundColor: input.trim() ? "var(--accent-9)" : "rgba(255, 255, 255, 0.05)",
+                  backgroundColor: input.trim() ? "var(--primary)" : "rgba(255, 255, 255, 0.03)",
+                  color: input.trim() ? "var(--on-primary)" : "var(--on-surface-variant)",
                 }}
               >
                 <Send size={16} />

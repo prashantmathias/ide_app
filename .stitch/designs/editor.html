@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+            font-size: 18px;
+        }
+        .syntax-keyword { color: #fabc45; }
+        .syntax-string { color: #74dd7e; }
+        .syntax-function { color: #a2c9ff; }
+        .syntax-comment { color: #8b919d; font-style: italic; }
+        .syntax-type { color: #ffdeaa; }
+        
+        .glass-panel {
+            backdrop-filter: blur(12px);
+            background-color: rgba(28, 32, 38, 0.85);
+        }
+        
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #414752;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #8b919d;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed-variant": "#004882",
+                        "on-error-container": "#ffdad6",
+                        "primary-fixed": "#d3e4ff",
+                        "on-background": "#dfe2eb",
+                        "surface-container-highest": "#31353c",
+                        "surface-dim": "#10141a",
+                        "tertiary-fixed-dim": "#fabc45",
+                        "tertiary-container": "#d29922",
+                        "on-secondary": "#003910",
+                        "outline-variant": "#414752",
+                        "primary": "#a2c9ff",
+                        "tertiary-fixed": "#ffdeaa",
+                        "secondary": "#74dd7e",
+                        "background": "#10141a",
+                        "error-container": "#93000a",
+                        "on-secondary-fixed": "#002106",
+                        "surface-tint": "#a2c9ff",
+                        "on-primary-container": "#003a6b",
+                        "on-tertiary": "#422c00",
+                        "on-surface-variant": "#c0c7d4",
+                        "surface": "#10141a",
+                        "secondary-container": "#007f2d",
+                        "on-secondary-container": "#c4ffc2",
+                        "secondary-fixed-dim": "#74dd7e",
+                        "secondary-fixed": "#90fa97",
+                        "on-primary-fixed": "#001c38",
+                        "primary-fixed-dim": "#a2c9ff",
+                        "surface-variant": "#31353c",
+                        "surface-container-high": "#262a31",
+                        "on-secondary-fixed-variant": "#00531b",
+                        "surface-container-lowest": "#0a0e14",
+                        "on-tertiary-fixed": "#271900",
+                        "surface-bright": "#353940",
+                        "on-surface": "#dfe2eb",
+                        "inverse-surface": "#dfe2eb",
+                        "on-tertiary-container": "#4d3500",
+                        "on-error": "#690005",
+                        "primary-container": "#58a6ff",
+                        "inverse-on-surface": "#2d3137",
+                        "tertiary": "#fabc45",
+                        "surface-container": "#1c2026",
+                        "on-tertiary-fixed-variant": "#5f4100",
+                        "inverse-primary": "#0060aa",
+                        "on-primary": "#00315c",
+                        "error": "#ffb4ab"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "sidebar-width": "260px",
+                        "padding-sm": "8px",
+                        "gutter-width": "48px",
+                        "unit": "4px",
+                        "padding-xs": "4px",
+                        "padding-md": "16px",
+                        "panel-gap": "1px",
+                        "padding-lg": "24px"
+                    },
+                    "fontFamily": {
+                        "code-md": ["JetBrains Mono"],
+                        "ui-header": ["Inter"],
+                        "ui-body": ["Inter"],
+                        "ui-label-sm": ["Inter"],
+                        "code-sm": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "code-md": ["14px", {"lineHeight": "22px", "fontWeight": "400"}],
+                        "ui-header": ["14px", {"lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                        "ui-body": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "ui-label-sm": ["11px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "code-sm": ["12px", {"lineHeight": "18px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-ui-body text-ui-body selection:bg-primary/30 overflow-hidden h-screen flex flex-col">
+<!-- TopNavBar (The Anchor) -->
+<header class="bg-surface-dim dark:bg-surface-dim border-b border-outline-variant flex justify-between items-center w-full px-spacing-md h-10 z-50">
+<div class="flex items-center gap-4">
+<span class="font-ui-header text-ui-header font-semibold text-on-surface dark:text-on-surface">CodeCraft IDE</span>
+<nav class="hidden md:flex gap-4">
+<button class="text-primary dark:text-primary border-b-2 border-primary pb-1 font-ui-label-sm text-ui-label-sm h-full flex items-center">File</button>
+<button class="text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface font-ui-label-sm text-ui-label-sm h-full flex items-center transition-colors">Edit</button>
+<button class="text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface font-ui-label-sm text-ui-label-sm h-full flex items-center transition-colors">Selection</button>
+<button class="text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface font-ui-label-sm text-ui-label-sm h-full flex items-center transition-colors">View</button>
+<button class="text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface font-ui-label-sm text-ui-label-sm h-full flex items-center transition-colors">Go</button>
+</nav>
+</div>
+<!-- Center Search Bar -->
+<div class="flex-1 max-w-xl mx-spacing-md">
+<div class="bg-surface-container-highest/40 border border-outline-variant rounded px-3 py-1 flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]">search</span>
+<span class="text-ui-label-sm">Search app.ts...</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-1 hover:bg-surface-container-highest/40 transition-colors rounded text-on-surface-variant">
+<span class="material-symbols-outlined">splitscreen</span>
+</button>
+<button class="p-1 hover:bg-surface-container-highest/40 transition-colors rounded text-secondary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</button>
+<button class="p-1 hover:bg-surface-container-highest/40 transition-colors rounded text-on-surface-variant">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</header>
+<div class="flex-1 flex overflow-hidden">
+<!-- SideNavBar (Activity Bar) -->
+<aside class="w-12 bg-surface-container-low dark:bg-surface-container-low border-r border-outline-variant flex flex-col items-center py-4 gap-4 z-40">
+<div class="bg-primary/10 text-primary border-l-2 border-primary w-full flex justify-center py-2">
+<span class="material-symbols-outlined">folder_open</span>
+</div>
+<div class="text-on-surface-variant hover:bg-surface-variant/30 w-full flex justify-center py-2 transition-all cursor-pointer">
+<span class="material-symbols-outlined">search</span>
+</div>
+<div class="text-on-surface-variant hover:bg-surface-variant/30 w-full flex justify-center py-2 transition-all cursor-pointer">
+<span class="material-symbols-outlined">account_tree</span>
+</div>
+<div class="text-on-surface-variant hover:bg-surface-variant/30 w-full flex justify-center py-2 transition-all cursor-pointer">
+<span class="material-symbols-outlined">extension</span>
+</div>
+<div class="mt-auto flex flex-col gap-4 w-full items-center mb-2">
+<div class="text-on-surface-variant hover:bg-surface-variant/30 w-full flex justify-center py-2 transition-all cursor-pointer">
+<span class="material-symbols-outlined">person</span>
+</div>
+<div class="text-on-surface-variant hover:bg-surface-variant/30 w-full flex justify-center py-2 transition-all cursor-pointer">
+<span class="material-symbols-outlined">settings</span>
+</div>
+</div>
+</aside>
+<!-- File Explorer (Sidebar) -->
+<aside class="w-sidebar-width bg-surface-container-low dark:bg-surface-container-low border-r border-outline-variant flex flex-col overflow-y-auto">
+<div class="px-spacing-md py-spacing-sm flex justify-between items-center">
+<span class="font-ui-header text-ui-header uppercase tracking-wider text-on-surface-variant text-[11px]">Explorer</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">more_horiz</span>
+</div>
+<div class="flex flex-col gap-1">
+<!-- Project Section -->
+<div class="flex items-center px-2 py-1 gap-1 text-on-surface font-semibold text-ui-label-sm cursor-pointer">
+<span class="material-symbols-outlined text-[14px]">expand_more</span>
+<span>PROJECT: CODECRAFT</span>
+</div>
+<!-- Folders -->
+<div class="pl-4">
+<div class="flex items-center px-2 py-1 gap-1 text-on-surface-variant text-ui-label-sm cursor-pointer hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[14px]">expand_more</span>
+<span class="material-symbols-outlined text-[16px] text-primary">folder</span>
+<span>src</span>
+</div>
+<div class="pl-4">
+<div class="flex items-center px-2 py-[2px] gap-2 text-on-surface-variant text-ui-label-sm cursor-pointer hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[16px] text-secondary">html</span>
+<span>index.html</span>
+</div>
+<div class="flex items-center px-2 py-[2px] gap-2 text-on-surface-variant text-ui-label-sm cursor-pointer hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[16px] text-primary">css</span>
+<span>styles.css</span>
+</div>
+<!-- Active File -->
+<div class="flex items-center px-2 py-[2px] gap-2 bg-primary/10 text-primary border-l-2 border-primary text-ui-label-sm cursor-pointer">
+<span class="material-symbols-outlined text-[16px]">javascript</span>
+<span>app.ts</span>
+</div>
+</div>
+</div>
+<div class="flex items-center px-2 py-1 gap-1 text-on-surface-variant text-ui-label-sm cursor-pointer hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">folder</span>
+<span>node_modules</span>
+</div>
+<div class="flex items-center px-2 py-1 gap-2 text-on-surface-variant text-ui-label-sm cursor-pointer hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[16px] text-tertiary">settings</span>
+<span>package.json</span>
+</div>
+</div>
+</aside>
+<!-- Main Editor Area -->
+<main class="flex-1 flex flex-col bg-surface-container-lowest relative overflow-hidden">
+<!-- Tabs -->
+<div class="flex bg-surface-container-low h-9 border-b border-outline-variant">
+<div class="flex items-center px-3 gap-2 bg-surface-container-lowest border-t-2 border-primary border-r border-outline-variant cursor-pointer group">
+<span class="material-symbols-outlined text-[14px] text-primary">javascript</span>
+<span class="text-ui-label-sm text-on-surface">app.ts</span>
+<span class="material-symbols-outlined text-[12px] opacity-0 group-hover:opacity-100">close</span>
+</div>
+<div class="flex items-center px-3 gap-2 bg-surface-container-high/40 border-r border-outline-variant cursor-pointer group opacity-70 hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-[14px] text-secondary">html</span>
+<span class="text-ui-label-sm text-on-surface">index.html</span>
+<span class="material-symbols-outlined text-[12px] opacity-0 group-hover:opacity-100">close</span>
+</div>
+<div class="flex items-center px-3 gap-2 bg-surface-container-high/40 border-r border-outline-variant cursor-pointer group opacity-70 hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-[14px] text-primary">css</span>
+<span class="text-ui-label-sm text-on-surface">styles.css</span>
+<span class="material-symbols-outlined text-[12px] opacity-0 group-hover:opacity-100">close</span>
+</div>
+</div>
+<!-- Editor Pane -->
+<div class="flex-1 flex overflow-hidden">
+<!-- Code Editor -->
+<div class="flex-1 overflow-y-auto p-4 font-code-md text-code-md flex bg-surface-container-lowest">
+<!-- Line Numbers -->
+<div class="pr-4 text-right text-outline select-none opacity-40">
+<div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div><div>8</div><div>9</div><div>10</div><div>11</div><div>12</div><div>13</div><div>14</div><div>15</div><div>16</div><div>17</div><div>18</div><div>19</div><div>20</div>
+</div>
+<!-- Code Content -->
+<div class="flex-1">
+<div class="syntax-keyword">import</div> { <span class="syntax-type">AppConfig</span>, <span class="syntax-type">RenderEngine</span> } <span class="syntax-keyword">from</span> <span class="syntax-string">'./core'</span>;
+                        <br/><br/>
+<span class="syntax-comment">// Initialize the CodeCraft workspace engine</span>
+<span class="syntax-keyword">const</span> config: <span class="syntax-type">AppConfig</span> = {
+                        <br/>  theme: <span class="syntax-string">'Obsidian Flux'</span>,
+                        <br/>  density: <span class="syntax-string">'high'</span>,
+                        <br/>  performance: <span class="syntax-string">'ultra'</span>
+<br/>};
+                        <br/><br/>
+<span class="syntax-keyword">export async function</span> <span class="syntax-function">bootstrapWorkspace</span>() {
+                        <br/>  <span class="syntax-keyword">const</span> engine = <span class="syntax-keyword">new</span> <span class="syntax-type">RenderEngine</span>(config);
+                        <br/>  
+                        <br/>  <span class="syntax-keyword">try</span> {
+                        <br/>    <span class="syntax-keyword">await</span> engine.<span class="syntax-function">init</span>();
+                        <br/>    console.<span class="syntax-function">log</span>(<span class="syntax-string">'Workspace initialized successfully'</span>);
+                        <br/>  } <span class="syntax-keyword">catch</span> (error) {
+                        <br/>    console.<span class="syntax-function">error</span>(<span class="syntax-string">'Initialization failed'</span>, error);
+                        <br/>  }
+                        <br/>}
+                    </div>
+</div>
+<!-- Minimap -->
+<div class="w-24 bg-surface-container-lowest border-l border-outline-variant/30 flex flex-col opacity-40 select-none overflow-hidden pointer-events-none">
+<div class="h-full w-full py-2 flex flex-col gap-[2px] items-center">
+<div class="h-1 bg-primary/40 w-16"></div>
+<div class="h-1 bg-outline-variant w-12 self-start ml-2"></div>
+<div class="h-1 bg-outline-variant w-20"></div>
+<div class="h-1 bg-primary/40 w-16"></div>
+<div class="h-1 bg-outline-variant w-18"></div>
+<div class="h-1 bg-secondary/40 w-14"></div>
+<div class="h-1 bg-outline-variant w-10"></div>
+<div class="h-4 bg-primary/10 w-full mt-4 border-y border-primary/20"></div>
+</div>
+</div>
+</div>
+<!-- Terminal Pane -->
+<div class="h-40 border-t border-outline-variant bg-surface-container-low flex flex-col">
+<div class="flex bg-surface-container h-8 border-b border-outline-variant px-spacing-md items-center gap-4">
+<span class="text-ui-label-sm text-on-surface font-bold uppercase border-b border-primary">Terminal</span>
+<span class="text-ui-label-sm text-on-surface-variant uppercase cursor-pointer hover:text-on-surface transition-colors">Output</span>
+<span class="text-ui-label-sm text-on-surface-variant uppercase cursor-pointer hover:text-on-surface transition-colors">Debug Console</span>
+<div class="ml-auto flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px] cursor-pointer">add</span>
+<span class="material-symbols-outlined text-[14px] cursor-pointer">keyboard_arrow_down</span>
+<span class="material-symbols-outlined text-[14px] cursor-pointer">close</span>
+</div>
+</div>
+<div class="flex-1 p-spacing-sm font-code-sm text-code-sm overflow-y-auto">
+<div class="flex gap-2">
+<span class="text-secondary font-bold">➜</span>
+<span class="text-primary">codecraft-app</span>
+<span class="text-tertiary">git:(main)</span>
+<span class="text-on-surface">npm start</span>
+</div>
+<div class="text-on-surface-variant mt-1">
+                        &gt; codecraft-ide-v2@1.0.0 start<br/>
+                        &gt; vite<br/><br/>
+<span class="text-secondary">VITE v5.1.0  ready in 421 ms</span><br/>
+<span class="text-on-surface-variant">➜  Local:   </span><span class="text-primary underline">http://localhost:5173/</span><br/>
+<span class="text-on-surface-variant">➜  Network: use --host to expose</span><br/>
+<span class="text-secondary font-bold mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span>
+                            Build finished. Watching for changes...
+                        </span>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- BottomNavBar (Status Bar) -->
+<footer class="bg-surface-container-high dark:bg-surface-container-high border-t border-outline-variant h-6 px-spacing-md flex items-center justify-between z-50">
+<div class="flex items-center gap-4 h-full">
+<div class="text-secondary font-bold flex items-center gap-1 font-ui-label-sm text-ui-label-sm uppercase hover:bg-surface-bright/20 cursor-pointer px-1 h-full transition-all">
+<span class="material-symbols-outlined text-[14px]">fork_right</span>
+<span>main*</span>
+</div>
+<div class="text-on-surface-variant flex items-center gap-1 hover:text-on-surface font-ui-label-sm text-ui-label-sm uppercase hover:bg-surface-bright/20 cursor-pointer px-1 h-full transition-all">
+<span class="material-symbols-outlined text-[14px]">sync</span>
+</div>
+<div class="text-on-surface-variant flex items-center gap-1 hover:text-on-surface font-ui-label-sm text-ui-label-sm uppercase hover:bg-surface-bright/20 cursor-pointer px-1 h-full transition-all">
+<span class="material-symbols-outlined text-[14px]">error</span>
+<span>0 Errors</span>
+</div>
+</div>
+<div class="flex items-center gap-4 h-full">
+<div class="text-on-surface-variant flex items-center gap-1 hover:text-on-surface font-ui-label-sm text-ui-label-sm uppercase hover:bg-surface-bright/20 cursor-pointer px-1 h-full transition-all">
+<span>Spaces: 2</span>
+</div>
+<div class="text-on-surface-variant flex items-center gap-1 hover:text-on-surface font-ui-label-sm text-ui-label-sm uppercase hover:bg-surface-bright/20 cursor-pointer px-1 h-full transition-all">
+<span>UTF-8</span>
+</div>
+<div class="text-on-surface-variant flex items-center gap-1 hover:text-on-surface font-ui-label-sm text-ui-label-sm uppercase hover:bg-surface-bright/20 cursor-pointer px-1 h-full transition-all">
+<span>TypeScript JSX</span>
+</div>
+<div class="text-secondary font-bold flex items-center gap-1 font-ui-label-sm text-ui-label-sm uppercase hover:bg-surface-bright/20 cursor-pointer px-1 h-full transition-all">
+<span class="material-symbols-outlined text-[14px]">check_circle</span>
+<span>Ready</span>
+</div>
+<div class="text-on-surface-variant flex items-center gap-1 hover:text-on-surface font-ui-label-sm text-ui-label-sm uppercase hover:bg-surface-bright/20 cursor-pointer px-1 h-full transition-all">
+<span class="material-symbols-outlined text-[14px]">notifications</span>
+</div>
+</div>
+</footer>
+<!-- Floating Command Palette (Interactions Example) -->
+<div class="hidden fixed top-20 left-1/2 -translate-x-1/2 w-[600px] glass-panel border border-outline-variant rounded-lg shadow-2xl z-[100] p-1" id="commandPalette">
+<div class="flex items-center px-3 py-2 border-b border-outline-variant/30 gap-2">
+<span class="material-symbols-outlined text-primary">chevron_right</span>
+<input class="bg-transparent border-none outline-none flex-1 text-on-surface text-ui-body placeholder:text-on-surface-variant" placeholder="Type a command or search files..." type="text"/>
+</div>
+<div class="max-h-[300px] overflow-y-auto">
+<div class="px-3 py-2 hover:bg-primary/10 flex justify-between cursor-pointer group">
+<span class="text-on-surface">Go to File...</span>
+<span class="text-on-surface-variant text-ui-label-sm group-hover:text-primary">Ctrl + P</span>
+</div>
+<div class="px-3 py-2 hover:bg-primary/10 flex justify-between cursor-pointer group">
+<span class="text-on-surface">Run Build Task</span>
+<span class="text-on-surface-variant text-ui-label-sm group-hover:text-primary">Ctrl + Shift + B</span>
+</div>
+<div class="px-3 py-2 hover:bg-primary/10 flex justify-between cursor-pointer group">
+<span class="text-on-surface">Toggle Terminal</span>
+<span class="text-on-surface-variant text-ui-label-sm group-hover:text-primary">Ctrl + `</span>
+</div>
+</div>
+</div>
+<script>
+        // Keyboard shortcut simulation for command palette
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+                e.preventDefault();
+                const palette = document.getElementById('commandPalette');
+                palette.classList.toggle('hidden');
+            }
+            if (e.key === 'Escape') {
+                document.getElementById('commandPalette').classList.add('hidden');
+            }
+        });
+
+        // Click outside to close palette
+        document.addEventListener('click', function(e) {
+            const palette = document.getElementById('commandPalette');
+            if (!palette.contains(e.target) && !palette.classList.contains('hidden')) {
+                palette.classList.add('hidden');
+            }
+        });
+    </script>
+</body></html>

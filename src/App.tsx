@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Box, Flex, Text, Button, ScrollArea } from "@radix-ui/themes";
-import { Play, Bug, File, Terminal, FastForward, StepForward, Sparkles } from "lucide-react";
+import { Play, Bug, File, Terminal, FastForward, StepForward, Sparkles, FolderOpen, Search, GitBranch, Blocks, Settings } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import Editor, { EditorMethods } from "./Editor";
@@ -22,6 +22,7 @@ function App() {
   const [callFrames, setCallFrames] = useState<DebugCallFrame[]>([]);
   const [debugVariables, setDebugVariables] = useState<DebugVariable[]>([]);
   const [activeBottomTab, setActiveBottomTab] = useState<"terminal" | "output">("terminal");
+  const [activeActivityTab, setActiveActivityTab] = useState<"explorer" | "search" | "git" | "extensions" | "settings" | null>("explorer");
   
   const breakpointsRef = useRef<number[]>([]);
 
@@ -206,11 +207,29 @@ function App() {
   return (
     <Flex className="app-container" direction="column" style={{ height: "100vh" }}>
       {/* Top Bar */}
-      <Flex className="top-bar" align="center" justify="between" px="4" py="2">
+      <Flex className="top-bar" align="center" justify="between" px="4">
+        {/* Left Side: Brand & Navigation */}
         <Flex align="center" gap="3">
-          <Text weight="bold" size="3" style={{ color: "var(--accent-9)" }}>Deno IDE</Text>
+          <Text weight="bold" size="3" className="brand-text">Deno IDE</Text>
+          <Flex gap="3" ml="4" className="hidden md:flex">
+            <div className="top-bar-nav-btn">File</div>
+            <div className="top-bar-nav-btn">Edit</div>
+            <div className="top-bar-nav-btn">Selection</div>
+            <div className="top-bar-nav-btn">View</div>
+            <div className="top-bar-nav-btn">Go</div>
+          </Flex>
         </Flex>
-        <Flex gap="2">
+
+        {/* Center Search Bar */}
+        <Flex style={{ flex: 1, justifyContent: "center" }} px="4">
+          <Flex align="center" gap="2" px="3" py="1" className="top-bar-search" style={{ width: "100%", maxWidth: "360px" }}>
+            <Search size={12} />
+            <Text style={{ fontSize: "11px" }}>Search main.ts...</Text>
+          </Flex>
+        </Flex>
+
+        {/* Right Side: Debug/Run Actions & AI Panel trigger */}
+        <Flex gap="2" align="center">
           {isDebugging && isPaused && (
              <>
                <Button variant="soft" color="green" size="2" style={{ cursor: "pointer" }} onClick={handleResume}>
@@ -240,26 +259,156 @@ function App() {
       </Flex>
 
       <Flex style={{ flex: 1, overflow: "hidden" }}>
-        {/* Sidebar */}
-        <Box className="sidebar" p="3" style={{ width: sidebarWidth, minWidth: sidebarWidth, flexShrink: 0 }}>
-          <Text size="2" weight="bold" mb="2" color="gray">EXPLORER</Text>
-          <ScrollArea>
-            <Flex direction="column" gap="1">
-              <Flex align="center" gap="2" className="file-item active" pl="4">
-                <File size={14} /> <Text size="2">main.ts</Text>
-              </Flex>
-            </Flex>
-          </ScrollArea>
-        </Box>
+        {/* Activity Bar (Vertical Navigation) */}
+        <div className="activity-bar">
+          <div
+            className={`activity-item ${activeActivityTab === "explorer" ? "active" : ""}`}
+            onClick={() => setActiveActivityTab(activeActivityTab === "explorer" ? null : "explorer")}
+            title="Explorer"
+          >
+            <FolderOpen size={20} />
+          </div>
+          <div
+            className={`activity-item ${activeActivityTab === "search" ? "active" : ""}`}
+            onClick={() => setActiveActivityTab(activeActivityTab === "search" ? null : "search")}
+            title="Search"
+          >
+            <Search size={20} />
+          </div>
+          <div
+            className={`activity-item ${activeActivityTab === "git" ? "active" : ""}`}
+            onClick={() => setActiveActivityTab(activeActivityTab === "git" ? null : "git")}
+            title="Source Control"
+          >
+            <GitBranch size={20} />
+          </div>
+          <div
+            className={`activity-item ${activeActivityTab === "extensions" ? "active" : ""}`}
+            onClick={() => setActiveActivityTab(activeActivityTab === "extensions" ? null : "extensions")}
+            title="Extensions"
+          >
+            <Blocks size={20} />
+          </div>
+          
+          <div style={{ marginTop: "auto", width: "100%", display: "flex", flexDirection: "column", gap: "16px", alignItems: "center" }}>
+            <div
+              className={`activity-item ${activeActivityTab === "settings" ? "active" : ""}`}
+              onClick={() => setActiveActivityTab(activeActivityTab === "settings" ? null : "settings")}
+              title="Settings"
+            >
+              <Settings size={20} />
+            </div>
+          </div>
+        </div>
 
-        <ResizeHandle direction="horizontal" onResize={handleSidebarResize} />
+        {/* Sidebar Panel */}
+        {activeActivityTab && (
+          <>
+            <Box className="sidebar" p="3" style={{ width: sidebarWidth, minWidth: sidebarWidth, flexShrink: 0, display: "flex", flexDirection: "column" }}>
+              {activeActivityTab === "explorer" && (
+                <>
+                  <Text size="1" weight="bold" mb="2" color="gray" style={{ letterSpacing: "0.05em" }}>EXPLORER</Text>
+                  <ScrollArea style={{ flex: 1 }}>
+                    <Flex direction="column" gap="1">
+                      <Flex align="center" gap="2" className="file-item active" pl="4">
+                        <File size={14} /> <Text size="2">main.ts</Text>
+                      </Flex>
+                    </Flex>
+                  </ScrollArea>
+                </>
+              )}
+              {activeActivityTab === "search" && (
+                <>
+                  <Text size="1" weight="bold" mb="2" color="gray" style={{ letterSpacing: "0.05em" }}>SEARCH</Text>
+                  <ScrollArea style={{ flex: 1 }}>
+                    <Flex direction="column" gap="2" p="1">
+                      <input
+                        type="text"
+                        placeholder="Search files..."
+                        style={{
+                          background: "var(--surface-container)",
+                          border: "1px solid var(--border-color)",
+                          color: "var(--on-surface)",
+                          padding: "6px 10px",
+                          borderRadius: "var(--radius-md)",
+                          fontSize: "12px",
+                          outline: "none",
+                        }}
+                      />
+                      <Text size="1" style={{ color: "var(--text-muted)", fontStyle: "italic" }}>No search results yet.</Text>
+                    </Flex>
+                  </ScrollArea>
+                </>
+              )}
+              {activeActivityTab === "git" && (
+                <>
+                  <Text size="1" weight="bold" mb="2" color="gray" style={{ letterSpacing: "0.05em" }}>SOURCE CONTROL</Text>
+                  <ScrollArea style={{ flex: 1 }}>
+                    <Flex direction="column" gap="3" p="1">
+                      <Text size="1" style={{ color: "var(--text-muted)" }}>CHANGES (1)</Text>
+                      <Flex align="center" justify="between" px="2" py="1" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-md)" }}>
+                        <Flex align="center" gap="2">
+                          <File size={12} style={{ color: "var(--secondary)" }} />
+                          <Text size="2" weight="medium">main.ts</Text>
+                        </Flex>
+                        <Text size="1" style={{ color: "var(--secondary)" }}>M</Text>
+                      </Flex>
+                      <Button size="1" variant="soft" color="green" style={{ cursor: "pointer", width: "100%" }}>
+                        Commit 1 Change
+                      </Button>
+                    </Flex>
+                  </ScrollArea>
+                </>
+              )}
+              {activeActivityTab === "extensions" && (
+                <>
+                  <Text size="1" weight="bold" mb="2" color="gray" style={{ letterSpacing: "0.05em" }}>EXTENSIONS</Text>
+                  <ScrollArea style={{ flex: 1 }}>
+                    <Flex direction="column" gap="3" p="1">
+                      <Flex direction="column" p="2" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)" }}>
+                        <Text size="2" weight="bold">Deno Support</Text>
+                        <Text size="1" style={{ color: "var(--text-muted)" }}>v1.0.4 - Enabled</Text>
+                      </Flex>
+                      <Flex direction="column" p="2" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)" }}>
+                        <Text size="2" weight="bold">AI Copilot</Text>
+                        <Text size="1" style={{ color: "var(--text-muted)" }}>v0.9.0 - Active</Text>
+                      </Flex>
+                    </Flex>
+                  </ScrollArea>
+                </>
+              )}
+              {activeActivityTab === "settings" && (
+                <>
+                  <Text size="1" weight="bold" mb="2" color="gray" style={{ letterSpacing: "0.05em" }}>SETTINGS</Text>
+                  <ScrollArea style={{ flex: 1 }}>
+                    <Flex direction="column" gap="3" p="1">
+                      <Flex justify="between" align="center">
+                        <Text size="2">Font Size</Text>
+                        <Text size="2" weight="bold" style={{ color: "var(--primary)" }}>14px</Text>
+                      </Flex>
+                      <Flex justify="between" align="center">
+                        <Text size="2">Theme</Text>
+                        <Text size="2" weight="bold" style={{ color: "var(--primary)" }}>Obsidian Flux</Text>
+                      </Flex>
+                      <Flex justify="between" align="center">
+                        <Text size="2">Line Wrap</Text>
+                        <Text size="2" weight="bold" style={{ color: "var(--text-muted)" }}>On</Text>
+                      </Flex>
+                    </Flex>
+                  </ScrollArea>
+                </>
+              )}
+            </Box>
+            <ResizeHandle direction="horizontal" onResize={handleSidebarResize} />
+          </>
+        )}
 
         {/* Main Editor Area */}
         <Flex direction="column" style={{ flex: 1, minWidth: 0 }}>
-          <Flex className="editor-tabs" px="3" py="2" gap="2">
-            <Box className="tab active">
+          <Flex className="editor-tabs" align="center" gap="1" px="2">
+            <div className="tab active">
               <Text size="2">main.ts</Text>
-            </Box>
+            </div>
           </Flex>
           
           <Box className="editor-container" style={{ flex: 1, position: "relative", minHeight: 0 }}>
@@ -301,7 +450,7 @@ function App() {
               <ScrollArea style={{ flex: 1, padding: "12px" }}>
                 <Flex direction="column" gap="1">
                   {consoleOutput.map((line, i) => (
-                    <Text key={i} size="2" style={{ fontFamily: "monospace", color: line.startsWith("ERROR") ? "var(--tomato-11)" : "var(--gray-11)" }}>
+                    <Text key={i} size="2" style={{ fontFamily: "monospace", color: line.startsWith("ERROR") ? "var(--error)" : "var(--on-surface-variant)" }}>
                       {line}
                     </Text>
                   ))}

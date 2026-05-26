@@ -37,6 +37,29 @@ export default function Editor({
     if (!monaco) return;
     const monacoAny = monaco as any;
 
+    monaco.editor.defineTheme("obsidian-flux", {
+      base: "vs-dark",
+      inherit: true,
+      rules: [
+        { token: "keyword", foreground: "fabc45" },
+        { token: "string", foreground: "74dd7e" },
+        { token: "comment", foreground: "8b919d", fontStyle: "italic" },
+        { token: "type", foreground: "ffdeaa" },
+        { token: "delimiter", foreground: "dfe2eb" },
+        { token: "number", foreground: "74dd7e" },
+      ],
+      colors: {
+        "editor.background": "#10141a",
+        "editor.foreground": "#dfe2eb",
+        "editor.lineHighlightBackground": "#1c2026",
+        "editorGutter.background": "#10141a",
+        "editor.selectionBackground": "#58a6ff33",
+        "editorLineNumber.foreground": "#8b919d40",
+        "editorLineNumber.activeForeground": "#a2c9ff",
+      },
+    });
+    monaco.editor.setTheme("obsidian-flux");
+
     invoke<string>("get_deno_types").then((types) => {
       monacoAny.languages.typescript.typescriptDefaults.setCompilerOptions({
         target: monacoAny.languages.typescript.ScriptTarget.ESNext,
@@ -164,7 +187,7 @@ export default function Editor({
     <MonacoEditor
       height="100%"
       language="typescript"
-      theme="vs-dark"
+      theme="obsidian-flux"
       path={file}
       value={code}
       onChange={handleChange}

@@ -19,13 +19,13 @@ export default function DenoTerminal() {
 
     const terminal = new XTerm({
       cursorBlink: true,
-      fontFamily: "Consolas, 'Cascadia Mono', monospace",
-      fontSize: 13,
+      fontFamily: "'JetBrains Mono', Consolas, 'Cascadia Mono', monospace",
+      fontSize: 12,
       theme: {
-        background: "#0b0d12",
-        foreground: "#d6deeb",
-        cursor: "#7dd3fc",
-        selectionBackground: "#334155",
+        background: "#10141a",
+        foreground: "#dfe2eb",
+        cursor: "#a2c9ff",
+        selectionBackground: "#58a6ff33",
       },
     });
     const fitAddon = new FitAddon();
