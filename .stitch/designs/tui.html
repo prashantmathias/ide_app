@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: -0.02em;
+        }
+        .syntax-keyword { color: #fabc45; }
+        .syntax-string { color: #74dd7e; }
+        .syntax-function { color: #a2c9ff; }
+        .syntax-comment { color: #8b919d; font-style: italic; }
+        .syntax-type { color: #ffdeaa; }
+        
+        .box-border-v { border-left-width: 1px; border-right-width: 1px; }
+        .box-border-h { border-top-width: 1px; border-bottom-width: 1px; }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0e14;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #31353c;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #414752;
+        }
+
+        /* TUI specifics */
+        .tui-border {
+            border-color: #414752;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed-variant": "#004882",
+                        "on-error-container": "#ffdad6",
+                        "primary-fixed": "#d3e4ff",
+                        "on-background": "#dfe2eb",
+                        "surface-container-highest": "#31353c",
+                        "surface-dim": "#10141a",
+                        "tertiary-fixed-dim": "#fabc45",
+                        "tertiary-container": "#d29922",
+                        "on-secondary": "#003910",
+                        "outline-variant": "#414752",
+                        "primary": "#a2c9ff",
+                        "tertiary-fixed": "#ffdeaa",
+                        "secondary": "#74dd7e",
+                        "background": "#10141a",
+                        "error-container": "#93000a",
+                        "on-secondary-fixed": "#002106",
+                        "surface-tint": "#a2c9ff",
+                        "on-primary-container": "#003a6b",
+                        "on-tertiary": "#422c00",
+                        "on-surface-variant": "#c0c7d4",
+                        "surface": "#10141a",
+                        "secondary-container": "#007f2d",
+                        "on-secondary-container": "#c4ffc2",
+                        "secondary-fixed-dim": "#74dd7e",
+                        "secondary-fixed": "#90fa97",
+                        "on-primary-fixed": "#001c38",
+                        "primary-fixed-dim": "#a2c9ff",
+                        "surface-variant": "#31353c",
+                        "surface-container-high": "#262a31",
+                        "on-secondary-fixed-variant": "#00531b",
+                        "surface-container-lowest": "#0a0e14",
+                        "on-tertiary-fixed": "#271900",
+                        "surface-bright": "#353940",
+                        "on-surface": "#dfe2eb",
+                        "inverse-surface": "#dfe2eb",
+                        "on-tertiary-container": "#4d3500",
+                        "on-error": "#690005",
+                        "primary-container": "#58a6ff",
+                        "inverse-on-surface": "#2d3137",
+                        "tertiary": "#fabc45",
+                        "surface-container": "#1c2026",
+                        "on-tertiary-fixed-variant": "#5f4100",
+                        "inverse-primary": "#0060aa",
+                        "on-primary": "#00315c",
+                        "error": "#ffb4ab"
+                    },
+                    "spacing": {
+                        "sidebar-width": "240px",
+                        "unit": "4px",
+                        "padding-xs": "4px",
+                        "padding-sm": "8px",
+                        "padding-md": "16px"
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-mono text-[13px] leading-tight selection:bg-primary/40 overflow-hidden h-screen flex flex-col">
+<!-- Top Bar: Status line / Menu -->
+<header class="bg-surface-container h-8 flex items-center px-2 border-b tui-border border-outline-variant shrink-0">
+<div class="flex items-center gap-4">
+<span class="text-primary font-bold">┌─ CodeCraft-TUI ─┐</span>
+<nav class="flex gap-2 text-on-surface-variant">
+<button class="px-2 bg-primary text-on-primary-container">&lt; FILE &gt;</button>
+<button class="px-2 hover:bg-surface-variant transition-colors">&lt; EDIT &gt;</button>
+<button class="px-2 hover:bg-surface-variant transition-colors">&lt; VIEW &gt;</button>
+<button class="px-2 hover:bg-surface-variant transition-colors">&lt; HELP &gt;</button>
+</nav>
+</div>
+<div class="flex-1 text-center opacity-50 text-[11px]">
+        ───────────  ( Alt+X: Menu | Ctrl+P: Command )  ───────────
+    </div>
+<div class="flex items-center gap-2 text-secondary">
+<span>[ RUN ]</span>
+<span class="text-on-surface-variant">│</span>
+<span class="text-on-surface-variant">12:45:01</span>
+</div>
+</header>
+<div class="flex-1 flex overflow-hidden">
+<!-- Activity Bar (Icons replaced with ASCII) -->
+<aside class="w-10 bg-surface-container-low border-r tui-border border-outline-variant flex flex-col items-center py-2 gap-4 shrink-0">
+<div class="text-primary font-bold"> [F] </div>
+<div class="text-on-surface-variant cursor-pointer"> [S] </div>
+<div class="text-on-surface-variant cursor-pointer"> [G] </div>
+<div class="text-on-surface-variant cursor-pointer"> [E] </div>
+<div class="mt-auto mb-2 text-on-surface-variant cursor-pointer"> [?] </div>
+</aside>
+<!-- Sidebar Explorer -->
+<aside class="w-sidebar-width bg-surface-container-lowest border-r tui-border border-outline-variant flex flex-col shrink-0">
+<div class="bg-surface-container px-2 py-1 flex justify-between items-center text-primary font-bold">
+<span>[ EXPLORER ]</span>
+<span>═</span>
+</div>
+<div class="p-2 overflow-y-auto whitespace-pre">
+<span class="text-on-surface-variant">v </span><span class="font-bold">PROJECT: CODECRAFT</span>
+<span class="text-on-surface-variant">│</span>
+<span class="text-on-surface-variant">├─v </span><span class="text-primary">[D] src</span>
+<span class="text-on-surface-variant">│ </span><span class="text-on-surface-variant">│</span>
+<span class="text-on-surface-variant">│ </span><span class="text-on-surface-variant">├─ </span><span class="text-secondary">[.] index.html</span>
+<span class="text-on-surface-variant">│ </span><span class="text-on-surface-variant">├─ </span><span class="text-primary">[.] styles.css</span>
+<span class="text-on-surface-variant">│ </span><span class="text-on-surface-variant">└─ </span><span class="bg-primary/20 text-primary font-bold">[*] app.ts</span>
+<span class="text-on-surface-variant">│</span>
+<span class="text-on-surface-variant">├─&gt; </span><span class="text-on-surface-variant">[D] node_modules</span>
+<span class="text-on-surface-variant">└─ </span><span class="text-tertiary">[.] package.json</span>
+</div>
+</aside>
+<!-- Main Workspace -->
+<main class="flex-1 flex flex-col bg-background relative overflow-hidden">
+<!-- Tabs -->
+<div class="flex bg-surface-container-low h-8 border-b tui-border border-outline-variant items-end shrink-0">
+<div class="px-4 py-1 bg-background border-x border-t tui-border border-outline-variant text-primary font-bold translate-y-[1px]">
+                [ app.ts ]
+            </div>
+<div class="px-4 py-1 bg-surface-container border-x border-t tui-border border-outline-variant/30 text-on-surface-variant cursor-pointer hover:bg-surface-variant">
+                index.html
+            </div>
+<div class="px-4 py-1 bg-surface-container border-x border-t tui-border border-outline-variant/30 text-on-surface-variant cursor-pointer hover:bg-surface-variant">
+                styles.css
+            </div>
+<div class="flex-1 border-b tui-border border-outline-variant h-full"></div>
+</div>
+<!-- Editor and Terminal Vertical Split -->
+<div class="flex-1 flex flex-col overflow-hidden">
+<!-- Editor -->
+<div class="flex-1 overflow-hidden flex flex-col">
+<div class="flex-1 overflow-auto flex">
+<!-- Line Numbers -->
+<div class="w-10 bg-surface-container-lowest text-right pr-2 py-4 text-outline border-r tui-border border-outline-variant/20 select-none opacity-50">
+                        1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20
+                    </div>
+<!-- Content -->
+<div class="flex-1 p-4 whitespace-pre font-mono">
+<span class="syntax-keyword">import</span> { <span class="syntax-type">AppConfig</span>, <span class="syntax-type">RenderEngine</span> } <span class="syntax-keyword">from</span> <span class="syntax-string">'./core'</span>;
+
+<span class="syntax-comment">// Initialize the CodeCraft workspace engine</span>
+<span class="syntax-keyword">const</span> config: <span class="syntax-type">AppConfig</span> = {
+  theme: <span class="syntax-string">'Obsidian Flux'</span>,
+  density: <span class="syntax-string">'high'</span>,
+  performance: <span class="syntax-string">'ultra'</span>
+};
+
+<span class="syntax-keyword">export async function</span> <span class="syntax-function">bootstrapWorkspace</span>() {
+  <span class="syntax-keyword">const</span> engine = <span class="syntax-keyword">new</span> <span class="syntax-type">RenderEngine</span>(config);
+  
+  <span class="syntax-keyword">try</span> {
+    <span class="syntax-keyword">await</span> engine.<span class="syntax-function">init</span>();
+    console.<span class="syntax-function">log</span>(<span class="syntax-string">'Workspace initialized successfully'</span>);
+  } <span class="syntax-keyword">catch</span> (error) {
+    console.<span class="syntax-function">error</span>(<span class="syntax-string">'Initialization failed'</span>, error);
+  }
+}</div>
+</div>
+</div>
+<!-- Terminal (Horizontal Splitter) -->
+<div class="h-48 border-t-2 tui-border border-outline-variant flex flex-col shrink-0 bg-surface-container-lowest">
+<div class="flex bg-surface-container h-7 items-center px-2 gap-4 text-[11px] uppercase border-b tui-border border-outline-variant">
+<span class="text-primary font-bold underline">1: TERMINAL</span>
+<span class="text-on-surface-variant cursor-pointer">2: OUTPUT</span>
+<span class="text-on-surface-variant cursor-pointer">3: DEBUG</span>
+<div class="ml-auto text-on-surface-variant">─ ┼ ─</div>
+</div>
+<div class="flex-1 p-2 overflow-y-auto bg-black/40 text-[12px]">
+<div class="flex gap-2">
+<span class="text-secondary font-bold">➜</span>
+<span class="text-primary">codecraft-app</span>
+<span class="text-tertiary">git:(main)</span>
+<span class="text-on-surface">npm start</span>
+</div>
+<div class="text-on-surface-variant mt-1">
+                        &gt; codecraft-ide-v2@1.0.0 start<br/>
+                        &gt; vite<br/><br/>
+<span class="text-secondary">VITE v5.1.0 ready in 421 ms</span><br/>
+<span class="text-on-surface-variant">➜ Local: </span><span class="text-primary underline">http://localhost:5173/</span><br/>
+<br/>
+<span class="text-secondary font-bold flex items-center gap-1">
+                            [ SUCCESS ] Build finished. Watching for changes...
+                        </span>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Bottom Status Bar -->
+<footer class="bg-primary text-on-primary-container h-6 flex items-center justify-between px-2 shrink-0 select-none">
+<div class="flex items-center gap-3">
+<span class="font-bold">[ NORMAL ]</span>
+<span class="text-on-primary-fixed-variant">main*</span>
+<span class="text-on-primary-fixed-variant">0 ERRORS</span>
+</div>
+<div class="flex items-center gap-4 text-[11px]">
+<span>UTF-8</span>
+<span>TYPESCRIPT</span>
+<span>LN 1, COL 1</span>
+<span class="bg-secondary text-on-secondary px-2 font-bold uppercase">READY</span>
+</div>
+</footer>
+<!-- Command Line (Vim Style) -->
+<div class="bg-background h-7 border-t tui-border border-outline-variant flex items-center px-2 shrink-0">
+<span class="text-primary font-bold mr-2">:</span>
+<input class="bg-transparent border-none outline-none flex-1 text-on-surface font-mono" placeholder="command... (try :p for palette)" type="text"/>
+</div>
+<!-- TUI Style Command Palette (Overlay) -->
+<div class="hidden fixed top-24 left-1/2 -translate-x-1/2 w-[500px] bg-surface-container border-2 tui-border border-primary shadow-2xl z-[100]" id="commandPalette">
+<div class="bg-primary text-on-primary font-bold px-2 py-1">
+        ┌── EXECUTE COMMAND ──┐
+    </div>
+<div class="p-2">
+<div class="flex items-center gap-2 text-primary border-b tui-border border-outline-variant/30 pb-1 mb-2">
+<span>&gt;</span>
+<input autofocus="" class="bg-transparent border-none outline-none flex-1 text-on-surface" type="text"/>
+</div>
+<div class="flex flex-col gap-1">
+<div class="px-2 py-1 bg-primary/20 text-primary flex justify-between">
+<span>Go to File...</span>
+<span class="opacity-50">Ctrl+P</span>
+</div>
+<div class="px-2 py-1 hover:bg-surface-variant flex justify-between cursor-pointer">
+<span>Build Project</span>
+<span class="opacity-50">F9</span>
+</div>
+<div class="px-2 py-1 hover:bg-surface-variant flex justify-between cursor-pointer">
+<span>Toggle Sidebar</span>
+<span class="opacity-50">Ctrl+B</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-high px-2 py-1 text-[10px] text-right opacity-50">
+        Esc: CLOSE | Enter: SELECT
+    </div>
+</div>
+<script>
+    // Simple toggle for the palette
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+            e.preventDefault();
+            const palette = document.getElementById('commandPalette');
+            palette.classList.toggle('hidden');
+            if(!palette.classList.contains('hidden')) {
+                palette.querySelector('input').focus();
+            }
+        }
+        if (e.key === 'Escape') {
+            document.getElementById('commandPalette').classList.add('hidden');
+        }
+    });
+
+    // Support for the bottom command line focus
+    document.addEventListener('keydown', function(e) {
+        if (e.key === ':' && document.activeElement.tagName !== 'INPUT') {
+            e.preventDefault();
+            document.querySelector('.bg-background input').focus();
+        }
+    });
+</script>
+</body></html>

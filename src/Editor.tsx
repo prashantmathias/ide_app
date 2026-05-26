@@ -195,9 +195,18 @@ export default function Editor({
       options={{
         automaticLayout: true,
         minimap: { enabled: false },
-        fontSize: 14,
-        padding: { top: 16 },
+        fontSize: 13,
+        fontFamily: "'JetBrains Mono', monospace",
+        padding: { top: 8 },
         glyphMargin: true,
+        lineNumbersMinChars: 3,
+        scrollbar: {
+          vertical: 'visible',
+          horizontal: 'visible',
+          useShadows: false,
+          verticalScrollbarSize: 8,
+          horizontalScrollbarSize: 8,
+        }
       }}
     />
   );

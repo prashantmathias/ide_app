@@ -7,11 +7,11 @@
   "origin": "STITCH",
   "deviceType": "DESKTOP",
   "screens": {
-    "editor": {
-      "id": "eee4c327d8824b6eb706ce0f0d56e0ac",
-      "sourceScreen": "projects/6637499048789868383/screens/eee4c327d8824b6eb706ce0f0d56e0ac",
-      "x": 1024,
-      "y": 0,
+    "tui": {
+      "id": "e4f3e7e6b3cb4ff3926f14d907d6d81f",
+      "sourceScreen": "projects/6637499048789868383/screens/e4f3e7e6b3cb4ff3926f14d907d6d81f",
+      "x": 0,
+      "y": 1280,
       "width": 1280,
       "height": 1024
     }

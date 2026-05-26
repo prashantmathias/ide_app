@@ -42,8 +42,14 @@ body, html {
   height: 100%;
   background-color: var(--bg-primary);
   color: var(--on-surface);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: -0.02em;
   overflow: hidden;
+}
+
+* {
+  font-family: 'JetBrains Mono', monospace !important;
+  letter-spacing: -0.02em !important;
 }
 
 ::-webkit-scrollbar {
@@ -409,5 +415,154 @@ body, html {
 .resize-handle:hover,
 .resize-handle.active {
   background-color: var(--primary);
+}
+
+/* TUI-specific custom styling overrides */
+
+.tui-border {
+  border-color: #414752 !important;
+}
+
+.tui-header {
+  background-color: var(--surface-container) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  height: 32px !important;
+}
+
+.tui-nav-btn {
+  color: var(--on-surface-variant) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  padding: 2px 8px !important;
+  border-radius: 0px !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.tui-nav-btn:hover {
+  color: var(--on-surface) !important;
+  background-color: var(--surface-variant) !important;
+}
+
+.tui-nav-btn.active {
+  background-color: var(--primary) !important;
+  color: var(--on-primary) !important;
+}
+
+.panel-tab-btn {
+  background: transparent !important;
+  border: none !important;
+  font-size: 11px !important;
+  font-weight: bold !important;
+  color: var(--on-surface-variant) !important;
+  cursor: pointer !important;
+  padding: 2px 8px !important;
+}
+
+.panel-tab-btn.active {
+  color: var(--primary) !important;
+  text-decoration: underline !important;
+}
+
+.panel-tab-btn:hover {
+  background-color: var(--surface-variant) !important;
+}
+
+.tui-footer {
+  background-color: var(--primary) !important;
+  color: var(--on-primary) !important;
+  height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+  user-select: none !important;
+}
+
+.command-line {
+  background-color: var(--bg-primary) !important;
+  height: 28px !important;
+  border-top: 1px solid var(--border-color) !important;
+  display: flex !important;
+  align-items: center !important;
+  padding: 0 8px !important;
+}
+
+.command-line input {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  flex: 1 !important;
+  color: var(--on-surface) !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 13px !important;
+}
+
+.command-palette-overlay {
+  position: fixed !important;
+  top: 96px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: 500px !important;
+  background-color: var(--surface-container) !important;
+  border: 2px solid var(--primary) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+  z-index: 100 !important;
+}
+
+.command-palette-header {
+  background-color: var(--primary) !important;
+  color: var(--on-primary) !important;
+  font-weight: bold !important;
+  padding: 4px 8px !important;
+  font-size: 13px !important;
+}
+
+.command-palette-body {
+  padding: 8px !important;
+}
+
+.command-palette-input-container {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  color: var(--primary) !important;
+  border-bottom: 1px solid rgba(65, 71, 82, 0.4) !important;
+  padding-bottom: 4px !important;
+  margin-bottom: 8px !important;
+}
+
+.command-palette-input-container input {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  flex: 1 !important;
+  color: var(--on-surface) !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 13px !important;
+}
+
+.command-palette-item {
+  padding: 4px 8px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+}
+
+.command-palette-item:hover, .command-palette-item.active {
+  background-color: rgba(162, 201, 255, 0.15) !important;
+  color: var(--primary) !important;
+}
+
+.command-palette-footer {
+  background-color: var(--surface-container-high) !important;
+  padding: 4px 8px !important;
+  font-size: 10px !important;
+  text-align: right !important;
+  opacity: 0.5 !important;
 }
 
