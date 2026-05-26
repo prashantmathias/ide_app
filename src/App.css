@@ -260,3 +260,13 @@ body, html {
 .ai-code-card pre::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* Tool execution status bubbles */
+.tool-status-bubble {
+  padding: 6px 12px;
+  background: rgba(99, 102, 241, 0.05) !important;
+  border-left: 2px solid var(--indigo-9) !important;
+  border-radius: 4px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}

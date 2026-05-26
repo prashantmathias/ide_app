@@ -1,13 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import { Box, Flex, Text, Button, ScrollArea, TextField, IconButton, Card } from "@radix-ui/themes";
-import { Send, Settings, Sparkles, Copy, CornerDownLeft, X, Bug, Wrench, Check, FileCode, Eye } from "lucide-react";
+import { Send, Settings, Sparkles, Copy, CornerDownLeft, X, Bug, Wrench, Check, FileCode, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { OpenAI } from "openai";
+import { invoke } from "@tauri-apps/api/core";
 
 interface Message {
   id: string;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool";
   content: string;
   timestamp: Date;
+  tool_calls?: any[];
+  tool_call_id?: string;
+  name?: string;
+  is_tool_status?: boolean;
 }
 
 export interface AIPanelProps {
@@ -19,6 +24,97 @@ export interface AIPanelProps {
   onClose: () => void;
   width: number;
 }
+
+// Tool definitions for OpenAI function calling
+const agentTools = [
+  {
+    type: "function" as const,
+    function: {
+      name: "list_directory",
+      description: "List files and directories in the given path (defaults to current project root directory if path is empty/'.')",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "The relative or absolute path of the directory to list." }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "read_file",
+      description: "Read the full contents of a file in the workspace.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "The path of the file to read." }
+        },
+        required: ["path"]
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "write_file",
+      description: "Create a new file or completely overwrite an existing file with new content.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "The path of the file to write to." },
+          content: { type: "string", description: "The complete content to write into the file." }
+        },
+        required: ["path", "content"]
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "edit_file",
+      description: "Edit code by replacing a specific block of search text with replacement text in a file.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "The path of the file to edit." },
+          searchText: { type: "string", description: "The exact block of code to find/replace. Be precise." },
+          replaceText: { type: "string", description: "The new code to replace the searchText with." }
+        },
+        required: ["path", "searchText", "replaceText"]
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "delete_file",
+      description: "Delete a file from the workspace.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "The path of the file to delete." }
+        },
+        required: ["path"]
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "install_package",
+      description: "Install a new NPM package into the project via npm install.",
+      parameters: {
+        type: "object",
+        properties: {
+          packageName: { type: "string", description: "The name of the package to install." }
+        },
+        required: ["packageName"]
+      }
+    }
+  }
+];
 
 export default function AIPanel({
   activeFile,
@@ -34,7 +130,7 @@ export default function AIPanel({
   const [model, setModel] = useState(() => localStorage.getItem("openai_model") || "gpt-4o-mini");
   const [endpoint, setEndpoint] = useState(() => localStorage.getItem("openai_endpoint") || "https://api.openai.com/v1");
   const [systemPrompt, setSystemPrompt] = useState(() => localStorage.getItem("openai_system_prompt") || 
-    "You are an AI programming assistant built into the Deno IDE. Help the user write, debug, and optimize their code. You have access to their active file and recent console output. When writing code, output complete, syntax-correct typescript blocks in markdown triple backticks. Keep explanations concise."
+    "You are an AI agent built into the Deno IDE. You have access to tools to read, write, edit, and delete files, list directories, and install NPM packages. You can use these tools to perform tasks in the workspace automatically. Always explain what you are doing, and summarize your changes at the end."
   );
 
   const [showSettings, setShowSettings] = useState(false);
@@ -55,13 +151,14 @@ export default function AIPanel({
       {
         id: "welcome",
         role: "assistant",
-        content: `Hi! I'm your AI Copilot. I can see you are editing **${activeFile}**. Ask me to write code, explain functions, or debug errors!`,
+        content: `Hi! I'm your AI Agent Copilot. I have tools to explore directories, read, write, edit, and delete files, and install NPM packages. Ask me to make changes in your project!`,
         timestamp: new Date(),
       },
     ];
   });
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expandedToolIds, setExpandedToolIds] = useState<Record<string, boolean>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -89,7 +186,7 @@ export default function AIPanel({
       const welcomeMsg: Message = {
         id: "welcome",
         role: "assistant",
-        content: `Hi! I'm your AI Copilot. I can see you are editing **${activeFile}**. Ask me to write code, explain functions, or debug errors!`,
+        content: `Hi! I'm your AI Agent Copilot. I have tools to explore directories, read, write, edit, and delete files, and install NPM packages. Ask me to make changes in your project!`,
         timestamp: new Date(),
       };
       setMessages([welcomeMsg]);
@@ -100,6 +197,75 @@ export default function AIPanel({
     navigator.clipboard.writeText(code);
     setCopiedId(blockId);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const toggleToolExpand = (id: string) => {
+    setExpandedToolIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Tool execution logic invoking Tauri Rust backends
+  const executeTool = async (name: string, argsStr: string) => {
+    let args: any = {};
+    try {
+      args = JSON.parse(argsStr || "{}");
+    } catch (e) {
+      return `Error parsing tool arguments: ${e}`;
+    }
+
+    try {
+      switch (name) {
+        case "list_directory": {
+          const path = args.path || ".";
+          const result = await invoke<any[]>("read_dir", { path });
+          // Format output cleanly
+          const filesSummary = result
+            .map((f) => `${f.is_dir ? "📁" : "📄"} ${f.name} (${f.path})`)
+            .join("\n");
+          return filesSummary || "(Directory is empty)";
+        }
+        case "read_file": {
+          const path = args.path;
+          if (!path) return "Error: path is required";
+          const content = await invoke<string>("read_file", { path });
+          return content;
+        }
+        case "write_file": {
+          const { path, content } = args;
+          if (!path) return "Error: path is required";
+          await invoke("save_file", { path, content });
+          return `Successfully wrote file to ${path}`;
+        }
+        case "edit_file": {
+          const { path, searchText, replaceText } = args;
+          if (!path) return "Error: path is required";
+
+          const originalContent = await invoke<string>("read_file", { path });
+          if (!originalContent.includes(searchText)) {
+            return `Error: Could not find exact search text in ${path}. Make sure search text matches exactly.`;
+          }
+
+          const newContent = originalContent.replace(searchText, replaceText);
+          await invoke("save_file", { path, content: newContent });
+          return `Successfully edited file ${path}`;
+        }
+        case "delete_file": {
+          const path = args.path;
+          if (!path) return "Error: path is required";
+          await invoke("delete_file", { path });
+          return `Successfully deleted file ${path}`;
+        }
+        case "install_package": {
+          const { packageName } = args;
+          if (!packageName) return "Error: packageName is required";
+          const stdout = await invoke<string>("install_npm_package", { packageName });
+          return `Successfully installed package ${packageName}.\nNPM Output:\n${stdout}`;
+        }
+        default:
+          return `Error: Unknown tool ${name}`;
+      }
+    } catch (e: any) {
+      return `Error executing tool ${name}: ${e.message || e.toString()}`;
+    }
   };
 
   const callOpenAI = async (userQuery: string, overrideMessages?: Message[]) => {
@@ -117,67 +283,166 @@ export default function AIPanel({
       timestamp: new Date(),
     };
 
-    const newMessages = overrideMessages || [...messages, userMessage];
+    let currentHistory = overrideMessages || [...messages, userMessage];
     if (!overrideMessages) {
-      setMessages(newMessages);
+      setMessages(currentHistory);
     }
 
-    const assistantMessageId = Math.random().toString();
-    const newAssistantMessage: Message = {
-      id: assistantMessageId,
-      role: "assistant",
-      content: "",
-      timestamp: new Date(),
-    };
+    let loopLimit = 10;
+    let currentIteration = 0;
+    let shouldContinue = true;
 
-    setMessages((prev) => [...prev, newAssistantMessage]);
+    while (shouldContinue && currentIteration < loopLimit) {
+      currentIteration++;
 
-    try {
-      const openai = new OpenAI({
-        apiKey: apiKey,
-        baseURL: endpoint || undefined,
-        dangerouslyAllowBrowser: true,
-      });
+      const assistantMessageId = Math.random().toString();
+      const newAssistantMessage: Message = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: "",
+        timestamp: new Date(),
+      };
 
-      // Construct system payload with file context
-      const contextSystemPrompt = `${systemPrompt}\n\n=== ACTIVE FILE: ${activeFile} ===\n\`\`\`typescript\n${activeFileContent}\n\`\`\``;
+      setMessages((prev) => [...prev, newAssistantMessage]);
 
-      const apiMessages = [
-        { role: "system", content: contextSystemPrompt },
-        ...newMessages.slice(-8).map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-      ];
+      try {
+        const openai = new OpenAI({
+          apiKey: apiKey,
+          baseURL: endpoint || undefined,
+          dangerouslyAllowBrowser: true,
+        });
 
-      const stream = await openai.chat.completions.create({
-        model: model,
-        messages: apiMessages as any,
-        stream: true,
-      });
+        const contextSystemPrompt = `${systemPrompt}\n\n=== ACTIVE FILE: ${activeFile} ===\n\`\`\`typescript\n${activeFileContent}\n\`\`\``;
 
-      let accumulatedContent = "";
-      for await (const chunk of stream) {
-        const text = chunk.choices[0]?.delta?.content || "";
-        accumulatedContent += text;
+        // Strip custom properties to prevent OpenAI API payload errors
+        const apiMessages = [
+          { role: "system", content: contextSystemPrompt },
+          ...currentHistory.map((m) => {
+            const apiMsg: any = { role: m.role, content: m.content || "" };
+            if (m.tool_calls) apiMsg.tool_calls = m.tool_calls;
+            if (m.tool_call_id) apiMsg.tool_call_id = m.tool_call_id;
+            return apiMsg;
+          }),
+        ];
+
+        const stream = await openai.chat.completions.create({
+          model: model,
+          messages: apiMessages as any,
+          tools: agentTools,
+          stream: true,
+        });
+
+        let accumulatedContent = "";
+        let toolCalls: any[] = [];
+
+        for await (const chunk of stream) {
+          const delta = chunk.choices[0]?.delta;
+          if (delta?.content) {
+            accumulatedContent += delta.content;
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessageId ? { ...msg, content: accumulatedContent } : msg
+              )
+            );
+          }
+
+          if (delta?.tool_calls) {
+            for (const tCall of delta.tool_calls) {
+              const idx = tCall.index;
+              if (!toolCalls[idx]) {
+                toolCalls[idx] = {
+                  id: tCall.id || "",
+                  type: "function",
+                  function: { name: "", arguments: "" }
+                };
+              }
+              if (tCall.id) toolCalls[idx].id = tCall.id;
+              if (tCall.function?.name) toolCalls[idx].function.name += tCall.function.name;
+              if (tCall.function?.arguments) toolCalls[idx].function.arguments += tCall.function.arguments;
+            }
+          }
+        }
+
+        const finalToolCalls = toolCalls.filter(Boolean);
+
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.id === assistantMessageId ? { ...msg, content: accumulatedContent } : msg
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  content: accumulatedContent,
+                  tool_calls: finalToolCalls.length > 0 ? finalToolCalls : undefined,
+                }
+              : msg
           )
         );
+
+        const lastAssistantMsg: Message = {
+          id: assistantMessageId,
+          role: "assistant",
+          content: accumulatedContent,
+          timestamp: new Date(),
+          tool_calls: finalToolCalls.length > 0 ? finalToolCalls : undefined,
+        };
+
+        currentHistory = [...currentHistory, lastAssistantMsg];
+
+        if (finalToolCalls.length > 0) {
+          const toolResults: Message[] = [];
+
+          for (const toolCall of finalToolCalls) {
+            const toolCallId = toolCall.id;
+            const functionName = toolCall.function.name;
+            const functionArgs = toolCall.function.arguments;
+
+            const statusMsgId = Math.random().toString();
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: statusMsgId,
+                role: "system",
+                content: `🔧 Running tool "${functionName}" with args: ${functionArgs}...`,
+                timestamp: new Date(),
+                is_tool_status: true,
+              },
+            ]);
+
+            const executionOutput = await executeTool(functionName, functionArgs);
+
+            // Clear temporary status
+            setMessages((prev) => prev.filter((m) => m.id !== statusMsgId));
+
+            const toolResultMsg: Message = {
+              id: Math.random().toString(),
+              role: "tool",
+              content: executionOutput,
+              timestamp: new Date(),
+              tool_call_id: toolCallId,
+              name: functionName,
+            };
+
+            toolResults.push(toolResultMsg);
+            setMessages((prev) => [...prev, toolResultMsg]);
+          }
+
+          currentHistory = [...currentHistory, ...toolResults];
+        } else {
+          shouldContinue = false;
+        }
+      } catch (e: any) {
+        console.error(e);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? { ...msg, content: `Error communicating with AI: ${e.message || e.toString()}` }
+              : msg
+          )
+        );
+        shouldContinue = false;
       }
-    } catch (e: any) {
-      console.error(e);
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMessageId
-            ? { ...msg, content: `Error communicating with AI: ${e.message || e.toString()}` }
-            : msg
-        )
-      );
-    } finally {
-      setIsLoading(false);
     }
+
+    setIsLoading(false);
   };
 
   const handleSend = () => {
@@ -194,7 +459,6 @@ export default function AIPanel({
     }
   };
 
-  // Quick action prompt handlers
   const handleQuickAction = (actionType: "explain" | "refactor" | "test" | "debug") => {
     if (isLoading) return;
 
@@ -213,8 +477,68 @@ export default function AIPanel({
     callOpenAI(query);
   };
 
-  // Simple custom Markdown formatter to avoid react-markdown npm issues
   const renderMessageContent = (msg: Message) => {
+    if (msg.is_tool_status) {
+      return (
+        <Flex align="center" gap="2" style={{ padding: "4px 8px" }}>
+          <Box className="ai-pulse-dot" style={{ width: "6px", height: "6px" }} />
+          <Text size="1" color="indigo" style={{ fontStyle: "italic" }}>
+            {msg.content}
+          </Text>
+        </Flex>
+      );
+    }
+
+    if (msg.role === "tool") {
+      const isExpanded = !!expandedToolIds[msg.id];
+      return (
+        <Flex direction="column" gap="1" style={{ width: "100%" }}>
+          <Flex
+            align="center"
+            gap="2"
+            style={{
+              background: "rgba(0, 0, 0, 0.2)",
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: "1px solid rgba(255, 255, 255, 0.05)",
+            }}
+          >
+            <Wrench size={12} style={{ color: "var(--amber-9)" }} />
+            <Text size="1" weight="bold" style={{ color: "var(--amber-11)" }}>
+              Tool executed: {msg.name}
+            </Text>
+            <IconButton
+              size="1"
+              variant="ghost"
+              style={{ marginLeft: "auto", cursor: "pointer" }}
+              onClick={() => toggleToolExpand(msg.id)}
+            >
+              {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </IconButton>
+          </Flex>
+          {isExpanded && (
+            <pre
+              style={{
+                margin: 0,
+                padding: "8px",
+                background: "rgba(0, 0, 0, 0.5)",
+                border: "1px solid rgba(255, 255, 255, 0.05)",
+                borderRadius: "4px",
+                overflowX: "auto",
+                fontSize: "11px",
+                fontFamily: "monospace",
+                color: "#a5b4fc",
+                maxHeight: "150px",
+                overflowY: "auto",
+              }}
+            >
+              <code>{msg.content}</code>
+            </pre>
+          )}
+        </Flex>
+      );
+    }
+
     const text = msg.content;
     const parts = [];
     const regex = /```(\w*)\n([\s\S]*?)(?:```|$)/g;
@@ -262,8 +586,19 @@ export default function AIPanel({
                   padding: "8px",
                 }}
               >
-                <Flex align="center" justify="between" mb="2" pb="1" style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.05)" }}>
-                  <Text size="1" weight="bold" color="gray" style={{ fontFamily: "monospace", textTransform: "uppercase" }}>
+                <Flex
+                  align="center"
+                  justify="between"
+                  mb="2"
+                  pb="1"
+                  style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.05)" }}
+                >
+                  <Text
+                    size="1"
+                    weight="bold"
+                    color="gray"
+                    style={{ fontFamily: "monospace", textTransform: "uppercase" }}
+                  >
                     {part.language || "code"}
                   </Text>
                   <Flex gap="2">
@@ -298,19 +633,26 @@ export default function AIPanel({
                     </Button>
                   </Flex>
                 </Flex>
-                <pre style={{ margin: 0, padding: "8px", overflowX: "auto", fontSize: "12px", fontFamily: "monospace", color: "#e4f0fc" }}>
+                <pre
+                  style={{
+                    margin: 0,
+                    padding: "8px",
+                    overflowX: "auto",
+                    fontSize: "12px",
+                    fontFamily: "monospace",
+                    color: "#e4f0fc",
+                  }}
+                >
                   <code>{part.content}</code>
                 </pre>
               </Card>
             );
           } else {
-            // Render basic text formatting, handling bold **text** and newlines
             const textContent = part.content;
             const lines = textContent.split("\n");
             return (
               <Box key={index} style={{ fontSize: "13px", lineHeight: "1.5", color: "var(--gray-12)" }}>
                 {lines.map((line, lIdx) => {
-                  // Basic markdown parser for bold **text**
                   const boldRegex = /\*\*([\s\S]*?)\*\*/g;
                   const lineParts = [];
                   let lastTextIdx = 0;
@@ -329,7 +671,10 @@ export default function AIPanel({
                   }
 
                   return (
-                    <div key={lIdx} style={{ minHeight: "1.2em", marginBottom: line === "" ? "8px" : "2px" }}>
+                    <div
+                      key={lIdx}
+                      style={{ minHeight: "1.2em", marginBottom: line === "" ? "8px" : "2px" }}
+                    >
                       {lineParts.length > 0 ? lineParts : " "}
                     </div>
                   );
@@ -357,10 +702,19 @@ export default function AIPanel({
       }}
     >
       {/* Panel Header */}
-      <Flex className="ai-panel-header" align="center" justify="between" px="3" py="2" style={{ borderBottom: "1px solid var(--border-color)" }}>
+      <Flex
+        className="ai-panel-header"
+        align="center"
+        justify="between"
+        px="3"
+        py="2"
+        style={{ borderBottom: "1px solid var(--border-color)" }}
+      >
         <Flex align="center" gap="2">
           <Sparkles size={16} style={{ color: "var(--accent-9)" }} />
-          <Text size="2" weight="bold">AI Copilot</Text>
+          <Text size="2" weight="bold">
+            AI Agent Copilot
+          </Text>
           {isLoading && <Box className="ai-pulse-dot" />}
         </Flex>
         <Flex gap="1">
@@ -373,13 +727,7 @@ export default function AIPanel({
           >
             <Settings size={14} />
           </IconButton>
-          <IconButton
-            size="1"
-            variant="ghost"
-            onClick={onClose}
-            style={{ cursor: "pointer" }}
-            title="Close Panel"
-          >
+          <IconButton size="1" variant="ghost" onClick={onClose} style={{ cursor: "pointer" }} title="Close Panel">
             <X size={14} />
           </IconButton>
         </Flex>
@@ -387,17 +735,28 @@ export default function AIPanel({
 
       {/* Settings Dialog Overlay */}
       {showSettings && (
-        <Card style={{ background: "rgba(20, 20, 25, 0.95)", border: "1px solid var(--accent-5)", padding: "12px", margin: "12px" }}>
+        <Card
+          style={{
+            background: "rgba(20, 20, 25, 0.95)",
+            border: "1px solid var(--accent-5)",
+            padding: "12px",
+            margin: "12px",
+          }}
+        >
           <Flex direction="column" gap="3">
             <Flex justify="between" align="center">
-              <Text size="2" weight="bold">OpenAI Settings</Text>
+              <Text size="2" weight="bold">
+                OpenAI Settings
+              </Text>
               <IconButton size="1" variant="ghost" onClick={() => setShowSettings(false)} style={{ cursor: "pointer" }}>
                 <X size={12} />
               </IconButton>
             </Flex>
 
             <Box>
-              <Text size="1" color="gray" style={{ display: "block", marginBottom: "4px" }}>API Key</Text>
+              <Text size="1" color="gray" style={{ display: "block", marginBottom: "4px" }}>
+                API Key
+              </Text>
               <TextField.Root
                 type="password"
                 placeholder="sk-..."
@@ -407,7 +766,9 @@ export default function AIPanel({
             </Box>
 
             <Box>
-              <Text size="1" color="gray" style={{ display: "block", marginBottom: "4px" }}>Model</Text>
+              <Text size="1" color="gray" style={{ display: "block", marginBottom: "4px" }}>
+                Model
+              </Text>
               <TextField.Root
                 placeholder="gpt-4o-mini"
                 value={model}
@@ -416,7 +777,9 @@ export default function AIPanel({
             </Box>
 
             <Box>
-              <Text size="1" color="gray" style={{ display: "block", marginBottom: "4px" }}>Base URL</Text>
+              <Text size="1" color="gray" style={{ display: "block", marginBottom: "4px" }}>
+                Base URL
+              </Text>
               <TextField.Root
                 placeholder="https://api.openai.com/v1"
                 value={endpoint}
@@ -425,7 +788,9 @@ export default function AIPanel({
             </Box>
 
             <Box>
-              <Text size="1" color="gray" style={{ display: "block", marginBottom: "4px" }}>System Prompt</Text>
+              <Text size="1" color="gray" style={{ display: "block", marginBottom: "4px" }}>
+                System Prompt
+              </Text>
               <textarea
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
@@ -445,7 +810,13 @@ export default function AIPanel({
             </Box>
 
             <Flex gap="2" justify="end">
-              <Button size="1" variant="soft" color="gray" onClick={() => setShowSettings(false)} style={{ cursor: "pointer" }}>
+              <Button
+                size="1"
+                variant="soft"
+                color="gray"
+                onClick={() => setShowSettings(false)}
+                style={{ cursor: "pointer" }}
+              >
                 Cancel
               </Button>
               <Button size="1" onClick={handleSaveSettings} style={{ cursor: "pointer" }}>
@@ -469,23 +840,46 @@ export default function AIPanel({
                   align={msg.role === "user" ? "end" : "start"}
                   style={{ width: "100%" }}
                 >
-                  <Flex align="center" gap="1" mb="1" style={{ opacity: 0.6 }}>
-                    <Text size="1" color="gray">
-                      {msg.role === "user" ? "You" : "Copilot"}
-                    </Text>
-                    <Text size="1" color="gray" style={{ fontSize: "10px" }}>
-                      • {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </Text>
-                  </Flex>
+                  {/* Don't render role label/timestamp for tool statuses */}
+                  {!msg.is_tool_status && (
+                    <Flex align="center" gap="1" mb="1" style={{ opacity: 0.6 }}>
+                      <Text size="1" color="gray">
+                        {msg.role === "user" ? "You" : msg.role === "tool" ? "Tool" : "Copilot"}
+                      </Text>
+                      <Text size="1" color="gray" style={{ fontSize: "10px" }}>
+                        • {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </Text>
+                    </Flex>
+                  )}
                   <Box
-                    className={msg.role === "user" ? "chat-bubble user" : "chat-bubble assistant"}
-                    p="2"
+                    className={
+                      msg.is_tool_status
+                        ? "tool-status-bubble"
+                        : msg.role === "user"
+                        ? "chat-bubble user"
+                        : msg.role === "tool"
+                        ? "chat-bubble tool"
+                        : "chat-bubble assistant"
+                    }
+                    p={msg.is_tool_status ? "1" : "2"}
                     style={{
-                      maxWidth: "90%",
+                      maxWidth: msg.is_tool_status ? "100%" : "90%",
                       borderRadius: "8px",
-                      backgroundColor: msg.role === "user" ? "rgba(0, 122, 255, 0.15)" : "rgba(255, 255, 255, 0.03)",
-                      border: msg.role === "user" ? "1px solid rgba(0, 122, 255, 0.25)" : "1px solid rgba(255, 255, 255, 0.05)",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                      backgroundColor: msg.is_tool_status
+                        ? "transparent"
+                        : msg.role === "user"
+                        ? "rgba(0, 122, 255, 0.15)"
+                        : msg.role === "tool"
+                        ? "rgba(245, 158, 11, 0.05)"
+                        : "rgba(255, 255, 255, 0.03)",
+                      border: msg.is_tool_status
+                        ? "none"
+                        : msg.role === "user"
+                        ? "1px solid rgba(0, 122, 255, 0.25)"
+                        : msg.role === "tool"
+                        ? "1px solid rgba(245, 158, 11, 0.15)"
+                        : "1px solid rgba(255, 255, 255, 0.05)",
+                      boxShadow: msg.is_tool_status ? "none" : "0 4px 12px rgba(0,0,0,0.1)",
                     }}
                   >
                     {renderMessageContent(msg)}
@@ -497,7 +891,13 @@ export default function AIPanel({
           </ScrollArea>
 
           {/* Quick Action Chips */}
-          <Flex direction="column" gap="1" px="3" py="2" style={{ borderTop: "1px solid var(--border-color)", background: "rgba(255,255,255,0.01)" }}>
+          <Flex
+            direction="column"
+            gap="1"
+            px="3"
+            py="2"
+            style={{ borderTop: "1px solid var(--border-color)", background: "rgba(255,255,255,0.01)" }}
+          >
             <Flex gap="2" wrap="wrap">
               <Button
                 size="1"
@@ -565,7 +965,7 @@ export default function AIPanel({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask AI Copilot... (Shift+Enter for newline)"
+                placeholder="Ask AI Agent... (e.g. 'install express' or 'edit main.ts to...')"
                 rows={2}
                 disabled={isLoading}
                 style={{

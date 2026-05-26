@@ -317,6 +317,27 @@ fn resize_terminal(rows: u16, cols: u16) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn delete_file(path: &str) -> Result<(), String> {
+    std::fs::remove_file(path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn install_npm_package(package_name: &str) -> Result<String, String> {
+    let npm_cmd = if cfg!(windows) { "npm.cmd" } else { "npm" };
+    let output = std::process::Command::new(npm_cmd)
+        .arg("install")
+        .arg(package_name)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    }
+}
+
+#[tauri::command]
 fn stop_terminal_command() -> Result<(), String> {
     let mut state = terminal_process().lock().map_err(|e| e.to_string())?;
     let Some(process) = state.take() else {
@@ -340,7 +361,9 @@ pub fn run() {
             start_terminal_shell,
             send_terminal_input,
             resize_terminal,
-            stop_terminal_command
+            stop_terminal_command,
+            delete_file,
+            install_npm_package
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
