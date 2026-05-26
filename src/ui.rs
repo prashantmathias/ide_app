@@ -20,6 +20,11 @@ const COLOR_RED: Color = Color::Rgb(255, 123, 114);           // Coral Red
 const COLOR_CYAN: Color = Color::Rgb(112, 222, 240);          // Cyan
 
 pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
+    state.header_rect = None;
+    state.explorer_rect = None;
+    state.editor_rect = None;
+    state.editor_inner_rect = None;
+    state.bottom_rect = None;
     // Overall screen layout:
     // 1. Header (1 line)
     // 2. Main Area (variable height)
@@ -46,6 +51,7 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
     ]);
     let header = Paragraph::new(header_text).style(Style::default().bg(COLOR_BG));
     f.render_widget(header, main_chunks[0]);
+    state.header_rect = Some((main_chunks[0].x, main_chunks[0].y, main_chunks[0].width, main_chunks[0].height));
 
     // Split Main Area and Bottom Panel
     let body_chunks = Layout::default()
@@ -80,6 +86,7 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
     if state.show_sidebar {
         let explorer_rect = content_chunks[chunk_idx];
         chunk_idx += 1;
+        state.explorer_rect = Some((explorer_rect.x, explorer_rect.y, explorer_rect.width, explorer_rect.height));
         
         let border_style = if state.focus_panel == FocusPanel::Explorer {
             Style::default().fg(COLOR_BORDER_ACTIVE)
@@ -146,6 +153,8 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
 
     // Calculate dimensions of editor inner text area
     let inner_editor_rect = block.inner(editor_rect);
+    state.editor_rect = Some((editor_rect.x, editor_rect.y, editor_rect.width, editor_rect.height));
+    state.editor_inner_rect = Some((inner_editor_rect.x, inner_editor_rect.y, inner_editor_rect.width, inner_editor_rect.height));
     let editor_height = inner_editor_rect.height as usize;
     let editor_width = inner_editor_rect.width as usize;
 
@@ -300,6 +309,7 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
         .title(Span::styled(tab_title, Style::default().fg(COLOR_BORDER_ACTIVE).bold()));
 
     let inner_bottom_rect = bottom_block.inner(body_chunks[1]);
+    state.bottom_rect = Some((body_chunks[1].x, body_chunks[1].y, body_chunks[1].width, body_chunks[1].height));
     let bottom_height = inner_bottom_rect.height as usize;
 
     let bottom_lines: Vec<Line> = match state.active_bottom_tab {

@@ -10,7 +10,7 @@ use crate::ui::draw_ui;
 use std::io;
 use std::time::{Duration, SystemTime};
 use crossterm::{
-    event::{self, Event, KeyCode, KeyModifiers, KeyEventKind},
+    event::{self, Event, KeyCode, KeyModifiers, KeyEventKind, EnableMouseCapture, DisableMouseCapture, MouseEvent, MouseEventKind, MouseButton},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -19,6 +19,7 @@ use tokio::sync::mpsc;
 
 enum TuiEvent {
     Key(crossterm::event::KeyEvent),
+    Mouse(MouseEvent),
     Deno(DenoEvent),
     Tick,
 }
@@ -28,14 +29,14 @@ async fn main() -> Result<(), io::Error> {
     // 1. Setup Terminal alternate screen and raw mode
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     
     // Set panic hook to ensure terminal reset on crash
     let default_panic = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let _ = disable_raw_mode();
         let mut out = io::stdout();
-        let _ = execute!(out, LeaveAlternateScreen);
+        let _ = execute!(out, LeaveAlternateScreen, DisableMouseCapture);
         default_panic(info);
     }));
 
@@ -66,16 +67,22 @@ async fn main() -> Result<(), io::Error> {
     // 3. Channels for Event Processing
     let (tx_tui, mut rx_tui) = mpsc::unbounded_channel::<TuiEvent>();
     
-    // Key event thread
-    let tx_key = tx_tui.clone();
+    // Event listener thread
+    let tx_evt = tx_tui.clone();
     std::thread::spawn(move || {
         loop {
             if event::poll(Duration::from_millis(100)).unwrap() {
-                if let Event::Key(key) = event::read().unwrap() {
-                    // Only process key Press events (avoid double trigger on Windows release/repeat)
-                    if key.kind == KeyEventKind::Press {
-                        let _ = tx_key.send(TuiEvent::Key(key));
+                match event::read().unwrap() {
+                    Event::Key(key) => {
+                        // Only process key Press events (avoid double trigger on Windows release/repeat)
+                        if key.kind == KeyEventKind::Press {
+                            let _ = tx_evt.send(TuiEvent::Key(key));
+                        }
                     }
+                    Event::Mouse(mouse) => {
+                        let _ = tx_evt.send(TuiEvent::Mouse(mouse));
+                    }
+                    _ => {}
                 }
             }
         }
@@ -116,6 +123,9 @@ async fn main() -> Result<(), io::Error> {
                 match event {
                     TuiEvent::Tick => {
                         // Tick event triggers redraw and updates clock
+                    }
+                    TuiEvent::Mouse(mouse) => {
+                        handle_mouse_event(&mut state, mouse, &tx_tui, &mut tx_debugger_cmd);
                     }
                     TuiEvent::Deno(deno_event) => {
                         match deno_event {
@@ -386,7 +396,7 @@ async fn main() -> Result<(), io::Error> {
 
     // Reset Terminal
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
     Ok(())
 }
 
@@ -486,5 +496,173 @@ async fn execute_vim_command(
         state.log("Commands: :w (save), :q (quit), :r (run), :d (debug), :bp <line_number> (toggle breakpoint)");
     } else {
         state.log(format!("Command not recognized: :{}", cmd));
+    }
+}
+
+fn handle_mouse_event(
+    state: &mut AppState,
+    mouse: MouseEvent,
+    tx_tui: &mpsc::UnboundedSender<TuiEvent>,
+    tx_debugger_cmd: &mut Option<mpsc::UnboundedSender<DebuggerCmd>>,
+) {
+    match mouse.kind {
+        MouseEventKind::Down(MouseButton::Left) => {
+            let col = mouse.column;
+            let row = mouse.row;
+
+            // 1. Header click
+            if let Some((x, y, w, _h)) = state.header_rect {
+                if row == y && col >= x && col < x + w {
+                    let rel_x = col - x;
+                    if rel_x >= 24 && rel_x <= 35 {
+                        state.mode = AppMode::Normal;
+                        state.focus_panel = FocusPanel::Editor;
+                        state.log("Mode: NORMAL");
+                    } else if rel_x >= 38 && rel_x <= 47 {
+                        state.mode = AppMode::Insert;
+                        state.focus_panel = FocusPanel::Editor;
+                        state.log("Mode: INSERT");
+                    } else if rel_x >= 50 && rel_x <= 61 {
+                        state.mode = AppMode::Command;
+                        state.command_text.clear();
+                    } else if rel_x >= 64 && rel_x <= 75 {
+                        state.mode = AppMode::Explorer;
+                        state.focus_panel = FocusPanel::Explorer;
+                        state.log("Mode: EXPLORER");
+                    } else if rel_x >= 78 && rel_x <= 85 {
+                        run_deno_script(state, false, tx_tui, tx_debugger_cmd);
+                    } else if rel_x >= 88 && rel_x <= 97 {
+                        if state.is_debugging {
+                            if state.is_paused {
+                                if let Some(ref tx) = tx_debugger_cmd {
+                                    let _ = tx.send(DebuggerCmd::Resume);
+                                }
+                            }
+                        } else {
+                            run_deno_script(state, true, tx_tui, tx_debugger_cmd);
+                        }
+                    }
+                    return;
+                }
+            }
+
+            // 2. Explorer click
+            if let Some((x, y, w, h)) = state.explorer_rect {
+                if col >= x && col < x + w && row >= y && row < y + h {
+                    state.focus_panel = FocusPanel::Explorer;
+                    state.mode = AppMode::Explorer;
+                    
+                    if row > y && row < y + h - 1 {
+                        let clicked_idx = (row - y - 1) as usize;
+                        if clicked_idx < state.explorer_items.len() {
+                            state.explorer_selected = clicked_idx;
+                            let item = &state.explorer_items[clicked_idx];
+                            if !item.is_dir {
+                                let filepath = item.path.to_string_lossy().to_string();
+                                match state.editor.load(&filepath) {
+                                    Ok(_) => {
+                                        state.log(format!("Loaded file: {}", filepath));
+                                        state.focus_panel = FocusPanel::Editor;
+                                        state.mode = AppMode::Normal;
+                                    }
+                                    Err(e) => {
+                                        state.log(format!("Failed to load file: {}", e));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return;
+                }
+            }
+
+            // 3. Editor click
+            if let Some((ex, ey, ew, eh)) = state.editor_rect {
+                if col >= ex && col < ex + ew && row >= ey && row < ey + eh {
+                    state.focus_panel = FocusPanel::Editor;
+                    if state.mode == AppMode::Explorer {
+                        state.mode = AppMode::Normal;
+                    }
+
+                    if let Some((ix, iy, _iw, ih)) = state.editor_inner_rect {
+                        let gutter_width = 7;
+                        
+                        if row >= iy && row < iy + ih {
+                            let clicked_line_offset = (row - iy) as usize;
+                            let target_line_idx = state.editor.scroll_y + clicked_line_offset;
+                            
+                            if target_line_idx < state.editor.lines.len() {
+                                if col >= ix && col < ix + gutter_width {
+                                    let line = target_line_idx + 1;
+                                    if state.breakpoints.contains(&line) {
+                                        state.breakpoints.retain(|&bp| bp != line);
+                                        state.log(format!("Breakpoint removed at line {}", line));
+                                        if let Some(ref tx) = tx_debugger_cmd {
+                                            let _ = tx.send(DebuggerCmd::RemoveBreakpoint { line });
+                                        }
+                                    } else {
+                                        state.breakpoints.push(line);
+                                        state.log(format!("Breakpoint set at line {}", line));
+                                        if let Some(ref tx) = tx_debugger_cmd {
+                                            let filename = state.editor.path.as_ref()
+                                                .map(|p| p.to_string_lossy().to_string())
+                                                .unwrap_or_else(|| "main.ts".to_string());
+                                            let _ = tx.send(DebuggerCmd::SetBreakpoint { line, filename });
+                                        }
+                                    }
+                                } else {
+                                    state.editor.cursor_y = target_line_idx;
+                                    
+                                    let clicked_col_offset = (col - ix - gutter_width) as usize;
+                                    let target_col_idx = state.editor.scroll_x + clicked_col_offset;
+                                    
+                                    let line_len = state.editor.lines[target_line_idx].len();
+                                    state.editor.cursor_x = target_col_idx.min(line_len);
+                                }
+                            }
+                        }
+                    }
+                    return;
+                }
+            }
+
+            // 4. Bottom Tab click
+            if let Some((x, y, w, h)) = state.bottom_rect {
+                if col >= x && col < x + w && row >= y && row < y + h {
+                    if row == y {
+                        let rel_x = col - x;
+                        if rel_x < 15 {
+                            state.active_bottom_tab = BottomTab::Output;
+                        } else {
+                            state.active_bottom_tab = BottomTab::Console;
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+        MouseEventKind::ScrollUp => {
+            let col = mouse.column;
+            let row = mouse.row;
+            if let Some((ex, ey, ew, eh)) = state.editor_rect {
+                if col >= ex && col < ex + ew && row >= ey && row < ey + eh {
+                    if state.editor.scroll_y > 0 {
+                        state.editor.scroll_y = state.editor.scroll_y.saturating_sub(1);
+                    }
+                }
+            }
+        }
+        MouseEventKind::ScrollDown => {
+            let col = mouse.column;
+            let row = mouse.row;
+            if let Some((ex, ey, ew, eh)) = state.editor_rect {
+                if col >= ex && col < ex + ew && row >= ey && row < ey + eh {
+                    if state.editor.scroll_y + 1 < state.editor.lines.len() {
+                        state.editor.scroll_y += 1;
+                    }
+                }
+            }
+        }
+        _ => {}
     }
 }

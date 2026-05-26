@@ -46,6 +46,11 @@ pub struct AppState {
     pub show_sidebar: bool,
     pub focus_panel: FocusPanel,
     pub time_string: String,
+    pub explorer_rect: Option<(u16, u16, u16, u16)>,
+    pub editor_rect: Option<(u16, u16, u16, u16)>,
+    pub editor_inner_rect: Option<(u16, u16, u16, u16)>,
+    pub bottom_rect: Option<(u16, u16, u16, u16)>,
+    pub header_rect: Option<(u16, u16, u16, u16)>,
 }
 
 impl AppState {
@@ -68,6 +73,11 @@ impl AppState {
             show_sidebar: true,
             focus_panel: FocusPanel::Editor,
             time_string: "00:00:00".to_string(),
+            explorer_rect: None,
+            editor_rect: None,
+            editor_inner_rect: None,
+            bottom_rect: None,
+            header_rect: None,
         }
     }
 
