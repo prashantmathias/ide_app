@@ -42,6 +42,7 @@ export default function DenoTerminal() {
 
     const startShell = () => {
       if (shellStarted) return;
+      if (!containerRef.current || containerRef.current.clientWidth === 0 || containerRef.current.clientHeight === 0) return;
       fitAddon.fit();
       if (terminal.rows < 2 || terminal.cols < 2) return;
 
@@ -53,6 +54,7 @@ export default function DenoTerminal() {
     };
 
     const resizeTerminal = () => {
+      if (!containerRef.current || containerRef.current.clientWidth === 0 || containerRef.current.clientHeight === 0) return;
       fitAddon.fit();
       startShell();
       if (runningRef.current) {
