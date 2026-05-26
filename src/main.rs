@@ -73,12 +73,11 @@ async fn main() -> Result<(), io::Error> {
         loop {
             if event::poll(Duration::from_millis(100)).unwrap() {
                 match event::read().unwrap() {
-                    Event::Key(key) => {
+                    Event::Key(key)
                         // Only process key Press events (avoid double trigger on Windows release/repeat)
-                        if key.kind == KeyEventKind::Press {
+                        if key.kind == KeyEventKind::Press => {
                             let _ = tx_evt.send(TuiEvent::Key(key));
                         }
-                    }
                     Event::Mouse(mouse) => {
                         let _ = tx_evt.send(TuiEvent::Mouse(mouse));
                     }
@@ -241,22 +240,20 @@ async fn main() -> Result<(), io::Error> {
                                             run_deno_script(&mut state, true, &tx_tui, &mut tx_debugger_cmd);
                                         }
                                     }
-                                    KeyCode::F(10) => {
+                                    KeyCode::F(10)
                                         // Step over
-                                        if state.is_debugging && state.is_paused {
+                                        if state.is_debugging && state.is_paused => {
                                             if let Some(ref tx) = tx_debugger_cmd {
                                                 let _ = tx.send(DebuggerCmd::StepOver);
                                             }
                                         }
-                                    }
-                                    KeyCode::F(11) => {
+                                    KeyCode::F(11)
                                         // Step into
-                                        if state.is_debugging && state.is_paused {
+                                        if state.is_debugging && state.is_paused => {
                                             if let Some(ref tx) = tx_debugger_cmd {
                                                 let _ = tx.send(DebuggerCmd::StepInto);
                                             }
                                         }
-                                    }
                                     // Tabs selection
                                     KeyCode::Char('1') => {
                                         state.active_bottom_tab = BottomTab::Output;
@@ -309,19 +306,17 @@ async fn main() -> Result<(), io::Error> {
                                         state.focus_panel = FocusPanel::Editor;
                                         state.log("Mode: NORMAL");
                                     }
-                                    KeyCode::Up | KeyCode::Char('k') => {
-                                        if state.explorer_selected > 0 {
+                                    KeyCode::Up | KeyCode::Char('k')
+                                        if state.explorer_selected > 0 => {
                                             state.explorer_selected -= 1;
                                         }
-                                    }
-                                    KeyCode::Down | KeyCode::Char('j') => {
-                                        if state.explorer_selected < state.explorer_items.len() - 1 {
+                                    KeyCode::Down | KeyCode::Char('j')
+                                        if state.explorer_selected < state.explorer_items.len() - 1 => {
                                             state.explorer_selected += 1;
                                         }
-                                    }
-                                    KeyCode::Enter => {
+                                    KeyCode::Enter
                                         // Open selected file
-                                        if !state.explorer_items.is_empty() {
+                                        if !state.explorer_items.is_empty() => {
                                             let item = &state.explorer_items[state.explorer_selected];
                                             if !item.is_dir {
                                                 let filepath = item.path.to_string_lossy().to_string();
@@ -337,10 +332,9 @@ async fn main() -> Result<(), io::Error> {
                                                 }
                                             }
                                         }
-                                    }
-                                    KeyCode::Char('r') => {
+                                    KeyCode::Char('r')
                                         // Run selected file
-                                        if !state.explorer_items.is_empty() {
+                                        if !state.explorer_items.is_empty() => {
                                             let item = &state.explorer_items[state.explorer_selected];
                                             if !item.is_dir {
                                                 let filepath = item.path.to_string_lossy().to_string();
@@ -348,10 +342,9 @@ async fn main() -> Result<(), io::Error> {
                                                 run_deno_script(&mut state, false, &tx_tui, &mut tx_debugger_cmd);
                                             }
                                         }
-                                    }
-                                    KeyCode::Char('d') => {
+                                    KeyCode::Char('d')
                                         // Debug selected file
-                                        if !state.explorer_items.is_empty() {
+                                        if !state.explorer_items.is_empty() => {
                                             let item = &state.explorer_items[state.explorer_selected];
                                             if !item.is_dir {
                                                 let filepath = item.path.to_string_lossy().to_string();
@@ -359,7 +352,6 @@ async fn main() -> Result<(), io::Error> {
                                                 run_deno_script(&mut state, true, &tx_tui, &mut tx_debugger_cmd);
                                             }
                                         }
-                                    }
                                     _ => {}
                                 }
                             }
@@ -471,8 +463,8 @@ async fn execute_vim_command(
         run_deno_script(state, false, tx_tui, tx_debugger_cmd);
     } else if cmd == "d" || cmd == "debug" {
         run_deno_script(state, true, tx_tui, tx_debugger_cmd);
-    } else if cmd.starts_with("bp ") {
-        if let Ok(line) = cmd[3..].trim().parse::<usize>() {
+    } else if let Some(stripped) = cmd.strip_prefix("bp ") {
+        if let Ok(line) = stripped.trim().parse::<usize>() {
             if state.breakpoints.contains(&line) {
                 state.breakpoints.retain(|&x| x != line);
                 state.log(format!("Breakpoint removed at line {}", line));
@@ -514,24 +506,24 @@ fn handle_mouse_event(
             if let Some((x, y, w, _h)) = state.header_rect {
                 if row == y && col >= x && col < x + w {
                     let rel_x = col - x;
-                    if rel_x >= 24 && rel_x <= 35 {
+                    if (24..=35).contains(&rel_x) {
                         state.mode = AppMode::Normal;
                         state.focus_panel = FocusPanel::Editor;
                         state.log("Mode: NORMAL");
-                    } else if rel_x >= 38 && rel_x <= 47 {
+                    } else if (38..=47).contains(&rel_x) {
                         state.mode = AppMode::Insert;
                         state.focus_panel = FocusPanel::Editor;
                         state.log("Mode: INSERT");
-                    } else if rel_x >= 50 && rel_x <= 61 {
+                    } else if (50..=61).contains(&rel_x) {
                         state.mode = AppMode::Command;
                         state.command_text.clear();
-                    } else if rel_x >= 64 && rel_x <= 75 {
+                    } else if (64..=75).contains(&rel_x) {
                         state.mode = AppMode::Explorer;
                         state.focus_panel = FocusPanel::Explorer;
                         state.log("Mode: EXPLORER");
-                    } else if rel_x >= 78 && rel_x <= 85 {
+                    } else if (78..=85).contains(&rel_x) {
                         run_deno_script(state, false, tx_tui, tx_debugger_cmd);
-                    } else if rel_x >= 88 && rel_x <= 97 {
+                    } else if (88..=97).contains(&rel_x) {
                         if state.is_debugging {
                             if state.is_paused {
                                 if let Some(ref tx) = tx_debugger_cmd {
@@ -627,17 +619,14 @@ fn handle_mouse_event(
             }
 
             // 4. Bottom Tab click
-            if let Some((x, y, w, h)) = state.bottom_rect {
-                if col >= x && col < x + w && row >= y && row < y + h {
-                    if row == y {
-                        let rel_x = col - x;
-                        if rel_x < 15 {
-                            state.active_bottom_tab = BottomTab::Output;
-                        } else {
-                            state.active_bottom_tab = BottomTab::Console;
-                        }
+            if let Some((x, y, w, _h)) = state.bottom_rect {
+                if col >= x && col < x + w && row == y {
+                    let rel_x = col - x;
+                    if rel_x < 15 {
+                        state.active_bottom_tab = BottomTab::Output;
+                    } else {
+                        state.active_bottom_tab = BottomTab::Console;
                     }
-                    return;
                 }
             }
         }
@@ -645,22 +634,20 @@ fn handle_mouse_event(
             let col = mouse.column;
             let row = mouse.row;
             if let Some((ex, ey, ew, eh)) = state.editor_rect {
-                if col >= ex && col < ex + ew && row >= ey && row < ey + eh {
-                    if state.editor.scroll_y > 0 {
+                if col >= ex && col < ex + ew && row >= ey && row < ey + eh
+                    && state.editor.scroll_y > 0 {
                         state.editor.scroll_y = state.editor.scroll_y.saturating_sub(1);
                     }
-                }
             }
         }
         MouseEventKind::ScrollDown => {
             let col = mouse.column;
             let row = mouse.row;
             if let Some((ex, ey, ew, eh)) = state.editor_rect {
-                if col >= ex && col < ex + ew && row >= ey && row < ey + eh {
-                    if state.editor.scroll_y + 1 < state.editor.lines.len() {
+                if col >= ex && col < ex + ew && row >= ey && row < ey + eh
+                    && state.editor.scroll_y + 1 < state.editor.lines.len() {
                         state.editor.scroll_y += 1;
                     }
-                }
             }
         }
         _ => {}

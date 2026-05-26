@@ -455,7 +455,7 @@ fn highlight_line(line: &str) -> Vec<Span<'static>> {
                 // Comment
                 let mut comment = String::from("//");
                 chars.next();
-                while let Some(cc) = chars.next() {
+                for cc in chars.by_ref() {
                     comment.push(cc);
                 }
                 spans.push(Span::styled(comment, Style::default().fg(color_comment)));
