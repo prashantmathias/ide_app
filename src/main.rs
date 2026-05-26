@@ -253,7 +253,7 @@ async fn main() -> Result<(), io::Error> {
                                         state.ai_settings_focus_index = state.ai_settings_focus_index.saturating_sub(1);
                                     }
                                     KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => {
-                                        if state.ai_settings_focus_index < 2 {
+                                        if state.ai_settings_focus_index < 3 {
                                             state.ai_settings_focus_index += 1;
                                         }
                                     }
@@ -272,6 +272,7 @@ async fn main() -> Result<(), io::Error> {
                                             0 => state.ai_system_prompt.push(c),
                                             1 => state.ai_base_url.push(c),
                                             2 => state.ai_api_key.push(c),
+                                            3 => state.ai_model.push(c),
                                             _ => {}
                                         }
                                     }
@@ -280,6 +281,7 @@ async fn main() -> Result<(), io::Error> {
                                             0 => { state.ai_system_prompt.pop(); }
                                             1 => { state.ai_base_url.pop(); }
                                             2 => { state.ai_api_key.pop(); }
+                                            3 => { state.ai_model.pop(); }
                                             _ => {}
                                         }
                                     }
@@ -924,10 +926,11 @@ fn send_ai_query(state: &mut AppState, tx_tui: mpsc::UnboundedSender<TuiEvent>) 
     let sys_prompt = state.ai_system_prompt.clone();
     let base_url = state.ai_base_url.clone();
     let api_key = state.ai_api_key.clone();
+    let model = state.ai_model.clone();
     
     // Spawn task
     tokio::spawn(async move {
-        let result = call_openai_api(history, tx_tui_clone, sys_prompt, base_url, api_key).await;
+        let result = call_openai_api(history, tx_tui_clone, sys_prompt, base_url, api_key, model).await;
         let _ = tx_tui.send(TuiEvent::Ai(AiEvent::Response(result)));
     });
 }
@@ -938,6 +941,7 @@ async fn call_openai_api(
     system_prompt: String,
     base_url: String,
     api_key: String,
+    model: String,
 ) -> Result<String, String> {
     let active_key = if api_key.is_empty() {
         match get_openai_key() {
@@ -1087,7 +1091,7 @@ async fn call_openai_api(
         loop_count += 1;
 
         let request_body = serde_json::json!({
-            "model": "gpt-4o",
+            "model": model,
             "messages": messages,
             "tools": tools
         });

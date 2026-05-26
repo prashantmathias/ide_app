@@ -72,6 +72,7 @@ pub struct AppState {
     pub ai_system_prompt: String,
     pub ai_base_url: String,
     pub ai_api_key: String,
+    pub ai_model: String,
     pub show_ai_settings: bool,
     pub ai_settings_focus_index: usize,
 }
@@ -116,6 +117,7 @@ impl AppState {
             ai_system_prompt: "You are a helpful AI assistant in the CodeCraft TUI IDE. Answer developer queries concisely. You have access to tools to interact with the workspace directory (list files, read, write, edit, and delete files, and install NPM packages). Use them autonomously when requested.".to_string(),
             ai_base_url: "https://api.openai.com/v1/chat/completions".to_string(),
             ai_api_key: String::new(),
+            ai_model: "gpt-4o".to_string(),
             show_ai_settings: false,
             ai_settings_focus_index: 0,
         };
@@ -135,6 +137,9 @@ impl AppState {
                 if let Some(ak) = json["api_key"].as_str() {
                     self.ai_api_key = ak.to_string();
                 }
+                if let Some(md) = json["model"].as_str() {
+                    self.ai_model = md.to_string();
+                }
             }
         }
     }
@@ -144,6 +149,7 @@ impl AppState {
             "system_prompt": self.ai_system_prompt,
             "base_url": self.ai_base_url,
             "api_key": self.ai_api_key,
+            "model": self.ai_model,
         });
         if let Ok(s) = serde_json::to_string_pretty(&json) {
             let _ = std::fs::write("ai_settings.json", s);

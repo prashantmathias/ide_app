@@ -673,7 +673,7 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
     if state.show_ai_settings {
         let area = f.area();
         let overlay_w: u16 = 60;
-        let overlay_h: u16 = 20;
+        let overlay_h: u16 = 24; // Increased height for the extra field
         let x = area.x + (area.width.saturating_sub(overlay_w)) / 2;
         let y = area.y + (area.height.saturating_sub(overlay_h)) / 2;
         let overlay_rect = Rect::new(x, y, overlay_w.min(area.width), overlay_h.min(area.height));
@@ -696,6 +696,7 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
                 Constraint::Length(8), // Prompt (multi-line)
                 Constraint::Length(3), // Base URL
                 Constraint::Length(3), // API Key
+                Constraint::Length(3), // Model
                 Constraint::Min(2),    // Instructions
             ])
             .split(inner_rect);
@@ -726,6 +727,7 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
         draw_field(settings_chunks[0], " System Prompt ", &state.ai_system_prompt, state.ai_settings_focus_index == 0, false);
         draw_field(settings_chunks[1], " Base URL ", &state.ai_base_url, state.ai_settings_focus_index == 1, false);
         draw_field(settings_chunks[2], " API Key ", &state.ai_api_key, state.ai_settings_focus_index == 2, true);
+        draw_field(settings_chunks[3], " Model ", &state.ai_model, state.ai_settings_focus_index == 3, false);
 
         let instr = if is_insert {
             "Press ESC to save and exit insert mode."
@@ -733,7 +735,7 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
             "Up/Down to select. 'i' to edit. F2/ESC to close."
         };
         let p_instr = Paragraph::new(Span::styled(format!("  {}", instr), Style::default().fg(COLOR_TEXT_MUTED).italic()));
-        f.render_widget(p_instr, settings_chunks[3]);
+        f.render_widget(p_instr, settings_chunks[4]);
     }
 }
 

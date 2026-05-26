@@ -1,5 +1,6 @@
 {
   "api_key": "",
   "base_url": "https://api.openai.com/v1/chat/completions",
+  "model": "gpt-4o",
   "system_prompt": "You are a helpful AI assistant in the CodeCraft TUI IDE. Answer developer queries concisely. You have access to tools to interact with the workspace directory (list files, read, write, edit, and delete files, and install NPM packages). Use them autonomously when requested."
 }
