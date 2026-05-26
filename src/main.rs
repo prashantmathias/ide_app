@@ -136,6 +136,7 @@ async fn main() -> Result<(), io::Error> {
                 match event {
                     TuiEvent::Tick => {
                         // Tick event triggers redraw and updates clock
+                        state.read_workspace_dir();
                     }
                     TuiEvent::Mouse(mouse) => {
                         handle_mouse_event(&mut state, mouse, &tx_tui, &mut tx_debugger_cmd);
