@@ -25,6 +25,8 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
     state.editor_rect = None;
     state.editor_inner_rect = None;
     state.bottom_rect = None;
+    state.ai_rect = None;
+    let mut ai_inner_input_rect = None;
     // Overall screen layout:
     // 1. Header (1 line)
     // 2. Main Area (variable height)
@@ -62,7 +64,7 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
         ])
         .split(main_chunks[1]);
 
-    // Split Editor, Explorer, and Debugger
+    // Split Editor, Explorer, Debugger, and AI Agent
     let mut main_horizontal_constraints = Vec::new();
     
     if state.show_sidebar {
@@ -73,6 +75,10 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
     
     if state.is_debugging {
         main_horizontal_constraints.push(Constraint::Length(35)); // Debugger panel
+    }
+    
+    if state.show_ai_panel {
+        main_horizontal_constraints.push(Constraint::Length(35)); // AI Agent panel
     }
     
     let content_chunks = Layout::default()
@@ -295,6 +301,100 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
         f.render_widget(block, debug_rect);
     }
 
+    // 2d. Render AI Agent Panel
+    if state.show_ai_panel {
+        let ai_rect = content_chunks[chunk_idx];
+        state.ai_rect = Some((ai_rect.x, ai_rect.y, ai_rect.width, ai_rect.height));
+        
+        let border_style = if state.focus_panel == FocusPanel::AiInput {
+            Style::default().fg(COLOR_BORDER_ACTIVE)
+        } else {
+            Style::default().fg(COLOR_BORDER_INACTIVE)
+        };
+        
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(border_style)
+            .title(Span::styled(" AI Agent ", Style::default().fg(COLOR_YELLOW).bold()));
+            
+        let inner_ai_rect = block.inner(ai_rect);
+        
+        // Split AI panel vertically:
+        // - Chat History (Min(3))
+        // - Status Line (Length(1))
+        // - Input Box (Length(3))
+        let ai_sub_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(3),
+                Constraint::Length(1),
+                Constraint::Length(3),
+            ])
+            .split(inner_ai_rect);
+            
+        // Chat History
+        let mut chat_lines = Vec::new();
+        for msg in &state.ai_chat_history {
+            if msg.sender == "U" {
+                chat_lines.push(Line::from(vec![
+                    Span::styled("U> ", Style::default().fg(COLOR_BORDER_ACTIVE).bold()),
+                    Span::styled(&msg.text, Style::default().fg(COLOR_TEXT_PRIMARY)),
+                ]));
+            } else {
+                chat_lines.push(Line::from(vec![
+                    Span::styled("A> ", Style::default().fg(COLOR_YELLOW).bold()),
+                    Span::styled(&msg.text, Style::default().fg(COLOR_TEXT_MUTED)),
+                ]));
+            }
+            chat_lines.push(Line::from("")); // spacer
+        }
+        
+        let chat_paragraph = Paragraph::new(chat_lines)
+            .wrap(ratatui::widgets::Wrap { trim: false })
+            .scroll((state.ai_chat_scroll as u16, 0));
+        f.render_widget(chat_paragraph, ai_sub_chunks[0]);
+        
+        // Status Line
+        let status_style = if state.ai_status == "THINKING" {
+            Style::default().fg(COLOR_YELLOW).bold()
+        } else {
+            Style::default().fg(COLOR_GREEN).bold()
+        };
+        let status_line = Line::from(vec![
+            Span::styled(format!(" AGENT: {} ", state.ai_status), status_style),
+        ]);
+        let status_widget = Paragraph::new(status_line).style(Style::default().bg(Color::Rgb(30, 41, 59)));
+        f.render_widget(status_widget, ai_sub_chunks[1]);
+        
+        // Input Box
+        let input_border_style = if state.focus_panel == FocusPanel::AiInput {
+            Style::default().fg(COLOR_BORDER_ACTIVE)
+        } else {
+            Style::default().fg(COLOR_BORDER_INACTIVE)
+        };
+        let input_block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(input_border_style)
+            .title(Span::styled(" Ask AI ", Style::default().fg(COLOR_YELLOW)));
+            
+        let input_text = if state.ai_input.is_empty() && state.focus_panel != FocusPanel::AiInput {
+            Span::styled("Type message...", Style::default().fg(COLOR_TEXT_MUTED).italic())
+        } else {
+            Span::styled(&state.ai_input, Style::default().fg(COLOR_TEXT_PRIMARY))
+        };
+        
+        ai_inner_input_rect = Some(input_block.inner(ai_sub_chunks[2]));
+
+        let input_widget = Paragraph::new(Line::from(vec![
+            Span::styled("> ", Style::default().fg(COLOR_YELLOW).bold()),
+            input_text
+        ])).block(input_block).style(Style::default().bg(COLOR_BG));
+        
+        f.render_widget(input_widget, ai_sub_chunks[2]);
+        f.render_widget(block, ai_rect);
+    }
+
     // 3. Render Bottom Panels (Output/Console Tabs)
     let bottom_border_style = Style::default().fg(COLOR_BORDER_INACTIVE);
     let tab_title = match state.active_bottom_tab {
@@ -426,6 +526,14 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
             && cursor_screen_x < (inner_editor_rect.x + inner_editor_rect.width) as usize
         {
             f.set_cursor_position((cursor_screen_x as u16, cursor_screen_y as u16));
+        }
+    } else if state.focus_panel == FocusPanel::AiInput && (state.mode == AppMode::Insert || state.mode == AppMode::Normal) {
+        if let Some(inner_rect) = ai_inner_input_rect {
+            // cursor inside Ask AI input box
+            let cursor_screen_y = inner_rect.y;
+            let cursor_offset = state.ai_input.len().min(inner_rect.width.saturating_sub(3) as usize);
+            let cursor_screen_x = inner_rect.x + 2 + cursor_offset as u16;
+            f.set_cursor_position((cursor_screen_x, cursor_screen_y));
         }
     } else if state.mode == AppMode::Command {
         // Put cursor at the end of command line

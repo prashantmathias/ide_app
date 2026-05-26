@@ -14,6 +14,7 @@ pub enum AppMode {
 pub enum FocusPanel {
     Editor,
     Explorer,
+    AiInput,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +27,12 @@ pub struct ExplorerItem {
     pub name: String,
     pub path: PathBuf,
     pub is_dir: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ChatMessage {
+    pub sender: String, // "U" or "A"
+    pub text: String,
 }
 
 pub struct AppState {
@@ -51,6 +58,14 @@ pub struct AppState {
     pub editor_inner_rect: Option<(u16, u16, u16, u16)>,
     pub bottom_rect: Option<(u16, u16, u16, u16)>,
     pub header_rect: Option<(u16, u16, u16, u16)>,
+    pub ai_rect: Option<(u16, u16, u16, u16)>,
+    
+    // AI Agent side panel fields
+    pub show_ai_panel: bool,
+    pub ai_status: String,
+    pub ai_input: String,
+    pub ai_chat_history: Vec<ChatMessage>,
+    pub ai_chat_scroll: usize,
 }
 
 impl AppState {
@@ -78,6 +93,16 @@ impl AppState {
             editor_inner_rect: None,
             bottom_rect: None,
             header_rect: None,
+            ai_rect: None,
+            
+            show_ai_panel: true,
+            ai_status: "LISTENING".to_string(),
+            ai_input: String::new(),
+            ai_chat_history: vec![ChatMessage {
+                sender: "A".to_string(),
+                text: "Hello! I am your CodeCraft assistant. How can I help you optimize your workspace today?".to_string(),
+            }],
+            ai_chat_scroll: 0,
         }
     }
 

@@ -4,7 +4,7 @@ mod main_state;
 mod ui;
 
 use crate::debugger::{DenoDebugger, DenoEvent, DebuggerCmd};
-use crate::main_state::{AppMode, AppState, BottomTab, FocusPanel};
+use crate::main_state::{AppMode, AppState, BottomTab, FocusPanel, ChatMessage};
 use crate::ui::draw_ui;
 
 use std::io;
@@ -22,6 +22,11 @@ enum TuiEvent {
     Mouse(MouseEvent),
     Deno(DenoEvent),
     Tick,
+    Ai(AiEvent),
+}
+
+enum AiEvent {
+    Response(Result<String, String>),
 }
 
 #[tokio::main]
@@ -181,10 +186,44 @@ async fn main() -> Result<(), io::Error> {
                             }
                         }
                     }
+                    TuiEvent::Ai(ai_event) => {
+                        match ai_event {
+                            AiEvent::Response(res) => {
+                                match res {
+                                    Ok(reply) => {
+                                        state.ai_chat_history.push(ChatMessage {
+                                            sender: "A".to_string(),
+                                            text: reply,
+                                        });
+                                    }
+                                    Err(err) => {
+                                        state.ai_chat_history.push(ChatMessage {
+                                            sender: "A".to_string(),
+                                            text: format!("Error: {}", err),
+                                        });
+                                    }
+                                }
+                                state.ai_status = "LISTENING".to_string();
+                                state.ai_chat_scroll = state.ai_chat_history.len() * 4;
+                            }
+                        }
+                    }
                     TuiEvent::Key(key) => {
                         // Global keybindings
                         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('q') {
                             break;
+                        }
+                        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('a') {
+                            state.show_ai_panel = !state.show_ai_panel;
+                            if state.show_ai_panel {
+                                state.focus_panel = FocusPanel::AiInput;
+                                state.mode = AppMode::Normal;
+                            } else if state.focus_panel == FocusPanel::AiInput {
+                                state.focus_panel = FocusPanel::Editor;
+                                state.mode = AppMode::Normal;
+                            }
+                            state.log(format!("AI Panel visibility: {}", state.show_ai_panel));
+                            continue;
                         }
 
                         match state.mode {
@@ -192,7 +231,9 @@ async fn main() -> Result<(), io::Error> {
                                 match key.code {
                                     KeyCode::Char('i') => {
                                         state.mode = AppMode::Insert;
-                                        state.focus_panel = FocusPanel::Editor;
+                                        if state.focus_panel != FocusPanel::AiInput {
+                                            state.focus_panel = FocusPanel::Editor;
+                                        }
                                         state.log("Mode: INSERT");
                                     }
                                     KeyCode::Char(':') => {
@@ -203,6 +244,34 @@ async fn main() -> Result<(), io::Error> {
                                         state.mode = AppMode::Explorer;
                                         state.focus_panel = FocusPanel::Explorer;
                                         state.log("Mode: EXPLORER");
+                                    }
+                                    KeyCode::Tab => {
+                                        let next_panel = match state.focus_panel {
+                                            FocusPanel::Editor => {
+                                                if state.show_ai_panel {
+                                                    FocusPanel::AiInput
+                                                } else if state.show_sidebar {
+                                                    FocusPanel::Explorer
+                                                } else {
+                                                    FocusPanel::Editor
+                                                }
+                                            }
+                                            FocusPanel::AiInput => {
+                                                if state.show_sidebar {
+                                                    FocusPanel::Explorer
+                                                } else {
+                                                    FocusPanel::Editor
+                                                }
+                                            }
+                                            FocusPanel::Explorer => FocusPanel::Editor,
+                                        };
+                                        state.focus_panel = next_panel;
+                                        if next_panel == FocusPanel::Explorer {
+                                            state.mode = AppMode::Explorer;
+                                        } else {
+                                            state.mode = AppMode::Normal;
+                                        }
+                                        state.log(format!("Focused panel: {:?}", state.focus_panel));
                                     }
                                     KeyCode::Char('b') => {
                                         // Toggle breakpoint
@@ -262,12 +331,45 @@ async fn main() -> Result<(), io::Error> {
                                         state.active_bottom_tab = BottomTab::Console;
                                     }
                                     // Navigation
-                                    KeyCode::Up | KeyCode::Char('k') => state.editor.move_cursor_up(),
-                                    KeyCode::Down | KeyCode::Char('j') => state.editor.move_cursor_down(),
-                                    KeyCode::Left | KeyCode::Char('h') => state.editor.move_cursor_left(),
-                                    KeyCode::Right | KeyCode::Char('l') => state.editor.move_cursor_right(),
-                                    KeyCode::Delete | KeyCode::Char('x') => state.editor.delete(),
-                                    KeyCode::Backspace => state.editor.move_cursor_left(),
+                                    KeyCode::Up | KeyCode::Char('k') => {
+                                        if state.focus_panel == FocusPanel::AiInput {
+                                            state.ai_chat_scroll = state.ai_chat_scroll.saturating_sub(1);
+                                        } else {
+                                            state.editor.move_cursor_up();
+                                        }
+                                    }
+                                    KeyCode::Down | KeyCode::Char('j') => {
+                                        if state.focus_panel == FocusPanel::AiInput {
+                                            state.ai_chat_scroll = state.ai_chat_scroll.saturating_add(1);
+                                        } else {
+                                            state.editor.move_cursor_down();
+                                        }
+                                    }
+                                    KeyCode::Left | KeyCode::Char('h') => {
+                                        if state.focus_panel != FocusPanel::AiInput {
+                                            state.editor.move_cursor_left();
+                                        }
+                                    }
+                                    KeyCode::Right | KeyCode::Char('l') => {
+                                        if state.focus_panel != FocusPanel::AiInput {
+                                            state.editor.move_cursor_right();
+                                        }
+                                    }
+                                    KeyCode::Delete | KeyCode::Char('x') => {
+                                        if state.focus_panel != FocusPanel::AiInput {
+                                            state.editor.delete();
+                                        }
+                                    }
+                                    KeyCode::Backspace => {
+                                        if state.focus_panel != FocusPanel::AiInput {
+                                            state.editor.move_cursor_left();
+                                        }
+                                    }
+                                    KeyCode::Enter => {
+                                        if state.focus_panel == FocusPanel::AiInput {
+                                            send_ai_query(&mut state, tx_tui.clone());
+                                        }
+                                    }
                                     _ => {}
                                 }
                             }
@@ -278,24 +380,60 @@ async fn main() -> Result<(), io::Error> {
                                         state.log("Mode: NORMAL");
                                     }
                                     KeyCode::Char(c) => {
-                                        state.editor.insert_char(c);
+                                        if state.focus_panel == FocusPanel::AiInput {
+                                            state.ai_input.push(c);
+                                        } else {
+                                            state.editor.insert_char(c);
+                                        }
                                     }
                                     KeyCode::Tab => {
-                                        state.editor.insert_tab();
+                                        if state.focus_panel != FocusPanel::AiInput {
+                                            state.editor.insert_tab();
+                                        }
                                     }
                                     KeyCode::Enter => {
-                                        state.editor.insert_newline();
+                                        if state.focus_panel == FocusPanel::AiInput {
+                                            send_ai_query(&mut state, tx_tui.clone());
+                                        } else {
+                                            state.editor.insert_newline();
+                                        }
                                     }
                                     KeyCode::Backspace => {
-                                        state.editor.backspace();
+                                        if state.focus_panel == FocusPanel::AiInput {
+                                            state.ai_input.pop();
+                                        } else {
+                                            state.editor.backspace();
+                                        }
                                     }
                                     KeyCode::Delete => {
-                                        state.editor.delete();
+                                        if state.focus_panel != FocusPanel::AiInput {
+                                            state.editor.delete();
+                                        }
                                     }
-                                    KeyCode::Up => state.editor.move_cursor_up(),
-                                    KeyCode::Down => state.editor.move_cursor_down(),
-                                    KeyCode::Left => state.editor.move_cursor_left(),
-                                    KeyCode::Right => state.editor.move_cursor_right(),
+                                    KeyCode::Up => {
+                                        if state.focus_panel == FocusPanel::AiInput {
+                                            state.ai_chat_scroll = state.ai_chat_scroll.saturating_sub(1);
+                                        } else {
+                                            state.editor.move_cursor_up();
+                                        }
+                                    }
+                                    KeyCode::Down => {
+                                        if state.focus_panel == FocusPanel::AiInput {
+                                            state.ai_chat_scroll = state.ai_chat_scroll.saturating_add(1);
+                                        } else {
+                                            state.editor.move_cursor_down();
+                                        }
+                                    }
+                                    KeyCode::Left => {
+                                        if state.focus_panel != FocusPanel::AiInput {
+                                            state.editor.move_cursor_left();
+                                        }
+                                    }
+                                    KeyCode::Right => {
+                                        if state.focus_panel != FocusPanel::AiInput {
+                                            state.editor.move_cursor_right();
+                                        }
+                                    }
                                     _ => {}
                                 }
                             }
@@ -629,6 +767,16 @@ fn handle_mouse_event(
                     }
                 }
             }
+
+            // 5. AI Panel click
+            if let Some((ax, ay, aw, ah)) = state.ai_rect {
+                if col >= ax && col < ax + aw && row >= ay && row < ay + ah {
+                    state.focus_panel = FocusPanel::AiInput;
+                    state.mode = AppMode::Normal;
+                    state.log("Focused panel: AI Agent");
+                    return;
+                }
+            }
         }
         MouseEventKind::ScrollUp => {
             let col = mouse.column;
@@ -652,4 +800,114 @@ fn handle_mouse_event(
         }
         _ => {}
     }
+}
+
+fn send_ai_query(state: &mut AppState, tx_tui: mpsc::UnboundedSender<TuiEvent>) {
+    let query = state.ai_input.trim().to_string();
+    if query.is_empty() {
+        return;
+    }
+    
+    // Add user message to history
+    state.ai_chat_history.push(ChatMessage {
+        sender: "U".to_string(),
+        text: query,
+    });
+    
+    // Clear input
+    state.ai_input.clear();
+    
+    // Set status to THINKING
+    state.ai_status = "THINKING".to_string();
+    
+    // Auto scroll to bottom
+    state.ai_chat_scroll = state.ai_chat_history.len() * 4;
+    
+    // Collect context
+    let history = state.ai_chat_history.clone();
+    
+    // Spawn task
+    tokio::spawn(async move {
+        let result = call_openai_api(history).await;
+        let _ = tx_tui.send(TuiEvent::Ai(AiEvent::Response(result)));
+    });
+}
+
+async fn call_openai_api(history: Vec<ChatMessage>) -> Result<String, String> {
+    let api_key = match get_openai_key() {
+        Some(key) => key,
+        None => {
+            return Err("OpenAI API key not found. Please set OPENAI_API_KEY environment variable or define it in a .env file.".to_string());
+        }
+    };
+    
+    let mut messages = vec![
+        serde_json::json!({
+            "role": "system",
+            "content": "You are a helpful AI assistant in the CodeCraft TUI IDE. Answer developer queries concisely."
+        })
+    ];
+    
+    let start_idx = history.len().saturating_sub(10);
+    for msg in &history[start_idx..] {
+        let role = if msg.sender == "U" { "user" } else { "assistant" };
+        messages.push(serde_json::json!({
+            "role": role,
+            "content": msg.text
+        }));
+    }
+    
+    let request_body = serde_json::json!({
+        "model": "gpt-4o",
+        "messages": messages
+    });
+    
+    let client = reqwest::Client::new();
+    let response = client.post("https://api.openai.com/v1/chat/completions")
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+        
+    if !response.status().is_success() {
+        let status = response.status();
+        let err_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!("API Error (status {}): {}", status, err_text));
+    }
+    
+    let res_json: serde_json::Value = response.json()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+        
+    let reply = res_json["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or_else(|| "Failed to extract content from choices".to_string())?
+        .to_string();
+        
+    Ok(reply)
+}
+
+fn get_openai_key() -> Option<String> {
+    if let Ok(key) = std::env::var("OPENAI_API_KEY") {
+        if !key.is_empty() {
+            return Some(key);
+        }
+    }
+    if let Ok(content) = std::fs::read_to_string(".env") {
+        for line in content.lines() {
+            let line = line.trim();
+            if line.starts_with("OPENAI_API_KEY=") {
+                let parts: Vec<&str> = line.splitn(2, '=').collect();
+                if parts.len() == 2 {
+                    let val = parts[1].trim().trim_matches('"').trim_matches('\'').to_string();
+                    if !val.is_empty() {
+                        return Some(val);
+                    }
+                }
+            }
+        }
+    }
+    None
 }

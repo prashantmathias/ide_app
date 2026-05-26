@@ -10,8 +10,16 @@
     "tui": {
       "id": "e4f3e7e6b3cb4ff3926f14d907d6d81f",
       "sourceScreen": "projects/6637499048789868383/screens/e4f3e7e6b3cb4ff3926f14d907d6d81f",
-      "x": 0,
-      "y": 1280,
+      "x": 147,
+      "y": 811,
+      "width": 1280,
+      "height": 1024
+    },
+    "tui_ai_agent": {
+      "id": "52ffa221b7e0480e975a7189c8b001f1",
+      "sourceScreen": "projects/6637499048789868383/screens/52ffa221b7e0480e975a7189c8b001f1",
+      "x": 2368,
+      "y": 811,
       "width": 1280,
       "height": 1024
     }
