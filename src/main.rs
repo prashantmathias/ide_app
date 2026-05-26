@@ -27,6 +27,7 @@ enum TuiEvent {
 
 enum AiEvent {
     Response(Result<String, String>),
+    Log(String),
 }
 
 #[tokio::main]
@@ -191,12 +192,14 @@ async fn main() -> Result<(), io::Error> {
                             AiEvent::Response(res) => {
                                 match res {
                                     Ok(reply) => {
+                                        state.log("[AI] OpenAI responded successfully.");
                                         state.ai_chat_history.push(ChatMessage {
                                             sender: "A".to_string(),
                                             text: reply,
                                         });
                                     }
                                     Err(err) => {
+                                        state.log(format!("[AI] OpenAI request failed: {}", err));
                                         state.ai_chat_history.push(ChatMessage {
                                             sender: "A".to_string(),
                                             text: format!("Error: {}", err),
@@ -204,6 +207,14 @@ async fn main() -> Result<(), io::Error> {
                                     }
                                 }
                                 state.ai_status = "LISTENING".to_string();
+                                state.ai_chat_scroll = state.ai_chat_history.len() * 4;
+                            }
+                            AiEvent::Log(msg) => {
+                                state.log(&msg);
+                                state.ai_chat_history.push(ChatMessage {
+                                    sender: "A".to_string(),
+                                    text: msg,
+                                });
                                 state.ai_chat_scroll = state.ai_chat_history.len() * 4;
                             }
                         }
@@ -808,6 +819,8 @@ fn send_ai_query(state: &mut AppState, tx_tui: mpsc::UnboundedSender<TuiEvent>) 
         return;
     }
     
+    state.log(format!("[AI] Sending query: {}", query));
+    
     // Add user message to history
     state.ai_chat_history.push(ChatMessage {
         sender: "U".to_string(),
@@ -825,15 +838,19 @@ fn send_ai_query(state: &mut AppState, tx_tui: mpsc::UnboundedSender<TuiEvent>) 
     
     // Collect context
     let history = state.ai_chat_history.clone();
+    let tx_tui_clone = tx_tui.clone();
     
     // Spawn task
     tokio::spawn(async move {
-        let result = call_openai_api(history).await;
+        let result = call_openai_api(history, tx_tui_clone).await;
         let _ = tx_tui.send(TuiEvent::Ai(AiEvent::Response(result)));
     });
 }
 
-async fn call_openai_api(history: Vec<ChatMessage>) -> Result<String, String> {
+async fn call_openai_api(
+    history: Vec<ChatMessage>,
+    tx_tui: mpsc::UnboundedSender<TuiEvent>,
+) -> Result<String, String> {
     let api_key = match get_openai_key() {
         Some(key) => key,
         None => {
@@ -844,7 +861,7 @@ async fn call_openai_api(history: Vec<ChatMessage>) -> Result<String, String> {
     let mut messages = vec![
         serde_json::json!({
             "role": "system",
-            "content": "You are a helpful AI assistant in the CodeCraft TUI IDE. Answer developer queries concisely."
+            "content": "You are a helpful AI assistant in the CodeCraft TUI IDE. Answer developer queries concisely. You have access to tools to interact with the workspace directory (list files, read, write, edit, and delete files, and install NPM packages). Use them autonomously when requested."
         })
     ];
     
@@ -857,36 +874,236 @@ async fn call_openai_api(history: Vec<ChatMessage>) -> Result<String, String> {
         }));
     }
     
-    let request_body = serde_json::json!({
-        "model": "gpt-4o",
-        "messages": messages
-    });
-    
+    let tools = serde_json::json!([
+        {
+            "type": "function",
+            "function": {
+                "name": "list_directory",
+                "description": "List all files and directories in the current workspace",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "read_file",
+                "description": "Read the contents of a file in the workspace",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Path to the file relative to the workspace root"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "write_file",
+                "description": "Create a new file or completely overwrite an existing file with content",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Path to the file relative to the workspace root"
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "Full text content to write into the file"
+                        }
+                    },
+                    "required": ["path", "content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "edit_file",
+                "description": "Search and replace a specific block of text inside an existing file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Path to the file relative to the workspace root"
+                        },
+                        "search": {
+                            "type": "string",
+                            "description": "The exact block of text in the file that you want to replace"
+                        },
+                        "replace": {
+                            "type": "string",
+                            "description": "The new text that will replace the search block"
+                        }
+                    },
+                    "required": ["path", "search", "replace"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "delete_file",
+                "description": "Delete a file from the workspace",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Path to the file relative to the workspace root"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "install_package",
+                "description": "Install an NPM package in the workspace",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "package": {
+                            "type": "string",
+                            "description": "Name of the NPM package to install"
+                        }
+                    },
+                    "required": ["package"]
+                }
+            }
+        }
+    ]);
+
     let client = reqwest::Client::new();
-    let response = client.post("https://api.openai.com/v1/chat/completions")
-        .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", api_key))
-        .json(&request_body)
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {}", e))?;
-        
-    if !response.status().is_success() {
-        let status = response.status();
-        let err_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-        return Err(format!("API Error (status {}): {}", status, err_text));
-    }
+    let mut loop_count = 0;
     
-    let res_json: serde_json::Value = response.json()
-        .await
-        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+    loop {
+        if loop_count >= 5 {
+            return Err("Agent loop limit reached (max 5 tool calls)".to_string());
+        }
+        loop_count += 1;
+
+        let request_body = serde_json::json!({
+            "model": "gpt-4o",
+            "messages": messages,
+            "tools": tools
+        });
+
+        let response = client.post("https://api.openai.com/v1/chat/completions")
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+            
+        if !response.status().is_success() {
+            let status = response.status();
+            let err_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(format!("API Error (status {}): {}", status, err_text));
+        }
         
-    let reply = res_json["choices"][0]["message"]["content"]
-        .as_str()
-        .ok_or_else(|| "Failed to extract content from choices".to_string())?
-        .to_string();
+        let res_json: serde_json::Value = response.json()
+            .await
+            .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+            
+        let message_val = &res_json["choices"][0]["message"];
         
-    Ok(reply)
+        // Check for tool calls
+        if let Some(tool_calls) = message_val["tool_calls"].as_array() {
+            if tool_calls.is_empty() {
+                let content = message_val["content"].as_str().unwrap_or("").to_string();
+                return Ok(content);
+            }
+            
+            // Append assistant message with tool calls to messages
+            messages.push(message_val.clone());
+            
+            for tool_call in tool_calls {
+                let tool_call_id = tool_call["id"].as_str().unwrap_or("").to_string();
+                let name = tool_call["function"]["name"].as_str().unwrap_or("").to_string();
+                let args_str = tool_call["function"]["arguments"].as_str().unwrap_or("{}");
+                let args: serde_json::Value = serde_json::from_str(args_str).unwrap_or(serde_json::Value::Null);
+
+                // Broadcast tool call log
+                let log_msg = format!("[AI Agent Tool Call] {} - args: {}", name, args_str);
+                let _ = tx_tui.send(TuiEvent::Ai(AiEvent::Log(log_msg)));
+
+                // Execute tool
+                let result = match name.as_str() {
+                    "list_directory" => match run_list_directory() {
+                        Ok(res) => res,
+                        Err(e) => format!("Error listing directory: {}", e),
+                    },
+                    "read_file" => {
+                        let path = args["path"].as_str().unwrap_or("");
+                        match run_read_file(path) {
+                            Ok(res) => res,
+                            Err(e) => format!("Error reading file: {}", e),
+                        }
+                    }
+                    "write_file" => {
+                        let path = args["path"].as_str().unwrap_or("");
+                        let content = args["content"].as_str().unwrap_or("");
+                        match run_write_file(path, content) {
+                            Ok(res) => res,
+                            Err(e) => format!("Error writing file: {}", e),
+                        }
+                    }
+                    "edit_file" => {
+                        let path = args["path"].as_str().unwrap_or("");
+                        let search = args["search"].as_str().unwrap_or("");
+                        let replace = args["replace"].as_str().unwrap_or("");
+                        match run_edit_file(path, search, replace) {
+                            Ok(res) => res,
+                            Err(e) => format!("Error editing file: {}", e),
+                        }
+                    }
+                    "delete_file" => {
+                        let path = args["path"].as_str().unwrap_or("");
+                        match run_delete_file(path) {
+                            Ok(res) => res,
+                            Err(e) => format!("Error deleting file: {}", e),
+                        }
+                    }
+                    "install_package" => {
+                        let package = args["package"].as_str().unwrap_or("");
+                        match run_install_package(package) {
+                            Ok(res) => res,
+                            Err(e) => format!("Error installing package: {}", e),
+                        }
+                    }
+                    _ => format!("Unknown tool name: {}", name),
+                };
+
+                // Broadcast tool result log
+                let result_log = format!("[AI Agent Tool Result] {} - success/output length: {}", name, result.len());
+                let _ = tx_tui.send(TuiEvent::Ai(AiEvent::Log(result_log)));
+
+                // Append tool response
+                messages.push(serde_json::json!({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "name": name,
+                    "content": result
+                }));
+            }
+        } else {
+            let content = message_val["content"].as_str().unwrap_or("").to_string();
+            return Ok(content);
+        }
+    }
 }
 
 fn get_openai_key() -> Option<String> {
@@ -910,4 +1127,114 @@ fn get_openai_key() -> Option<String> {
         }
     }
     None
+}
+
+// --- AI AGENT WORKSPACE TOOLS ---
+
+fn run_list_directory() -> Result<String, String> {
+    let mut items = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(".") {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') || name == "target" || name == "node_modules" {
+                continue;
+            }
+            let path = entry.path();
+            let is_dir = path.is_dir();
+            let kind = if is_dir { "Directory" } else { "File" };
+            items.push(format!("- {} ({})", name, kind));
+        }
+    }
+    items.sort();
+    if items.is_empty() {
+        Ok("Workspace is empty.".to_string())
+    } else {
+        Ok(items.join("\n"))
+    }
+}
+
+fn run_read_file(path: &str) -> Result<String, String> {
+    std::fs::read_to_string(path).map_err(|e| format!("Failed to read file '{}': {}", path, e))
+}
+
+fn run_write_file(path: &str, content: &str) -> Result<String, String> {
+    std::fs::write(path, content)
+        .map(|_| format!("Successfully wrote file '{}'.", path))
+        .map_err(|e| format!("Failed to write file '{}': {}", path, e))
+}
+
+fn run_edit_file(path: &str, search: &str, replace: &str) -> Result<String, String> {
+    let content = std::fs::read_to_string(path).map_err(|e| format!("Failed to read file '{}': {}", path, e))?;
+    if !content.contains(search) {
+        return Err(format!(
+            "Search block not found in file '{}'. Ensure your search string matches exactly.",
+            path
+        ));
+    }
+    let new_content = content.replace(search, replace);
+    std::fs::write(path, new_content)
+        .map(|_| format!("Successfully edited file '{}'.", path))
+        .map_err(|e| format!("Failed to write edited file '{}': {}", path, e))
+}
+
+fn run_delete_file(path: &str) -> Result<String, String> {
+    std::fs::remove_file(path)
+        .map(|_| format!("Successfully deleted file '{}'.", path))
+        .map_err(|e| format!("Failed to delete file '{}': {}", path, e))
+}
+
+fn run_install_package(package: &str) -> Result<String, String> {
+    let output = std::process::Command::new("npm")
+        .args(["install", package])
+        .output();
+    match output {
+        Ok(out) => {
+            if out.status.success() {
+                Ok(format!("Successfully installed package '{}'.", package))
+            } else {
+                Err(format!(
+                    "npm install failed: {}",
+                    String::from_utf8_lossy(&out.stderr)
+                ))
+            }
+        }
+        Err(e) => Err(format!("Failed to execute npm command: {}", e)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_filesystem_tools() {
+        let test_file = "test_run_tool.txt";
+        let content = "Hello from AI tool test!\nLine 2: Target\nLine 3: End";
+        
+        // Test write_file
+        let res = run_write_file(test_file, content);
+        assert!(res.is_ok());
+
+        // Test read_file
+        let read_res = run_read_file(test_file);
+        assert!(read_res.is_ok());
+        assert_eq!(read_res.unwrap(), content);
+
+        // Test edit_file
+        let edit_res = run_edit_file(test_file, "Line 2: Target", "Line 2: Replacement");
+        assert!(edit_res.is_ok());
+        let read_after_edit = run_read_file(test_file).unwrap();
+        assert!(read_after_edit.contains("Line 2: Replacement"));
+        assert!(!read_after_edit.contains("Line 2: Target"));
+
+        // Test list_directory
+        let list_res = run_list_directory();
+        assert!(list_res.is_ok());
+        assert!(list_res.unwrap().contains(test_file));
+
+        // Test delete_file
+        let del_res = run_delete_file(test_file);
+        assert!(del_res.is_ok());
+        assert!(!run_list_directory().unwrap().contains(test_file));
+    }
 }
