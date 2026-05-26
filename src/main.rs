@@ -52,6 +52,13 @@ async fn main() -> Result<(), io::Error> {
 
     // 2. Initialize App State
     let mut state = AppState::new();
+    
+    if let Some(workspace_dir) = std::env::args().nth(1) {
+        if let Err(e) = std::env::set_current_dir(&workspace_dir) {
+            state.log(format!("Failed to set workspace directory: {}", e));
+        }
+    }
+    
     state.read_workspace_dir();
 
     // Load default file (main.ts if exists, or first file)
@@ -544,7 +551,51 @@ async fn main() -> Result<(), io::Error> {
                                 }
                             }
                             AppMode::Explorer => {
+                                if state.explorer_input_mode.is_some() {
+                                    match key.code {
+                                        KeyCode::Esc => {
+                                            state.explorer_input_mode = None;
+                                            state.explorer_input.clear();
+                                        }
+                                        KeyCode::Enter => {
+                                            if let Some(mode) = &state.explorer_input_mode {
+                                                if !state.explorer_input.is_empty() {
+                                                    let path = std::path::PathBuf::from(&state.explorer_input);
+                                                    if mode == "File" {
+                                                        if let Err(e) = std::fs::File::create(&path) {
+                                                            state.log(format!("Failed to create file: {}", e));
+                                                        }
+                                                    } else if mode == "Directory" {
+                                                        if let Err(e) = std::fs::create_dir(&path) {
+                                                            state.log(format!("Failed to create directory: {}", e));
+                                                        }
+                                                    }
+                                                    state.read_workspace_dir();
+                                                }
+                                            }
+                                            state.explorer_input_mode = None;
+                                            state.explorer_input.clear();
+                                        }
+                                        KeyCode::Backspace => {
+                                            state.explorer_input.pop();
+                                        }
+                                        KeyCode::Char(c) => {
+                                            state.explorer_input.push(c);
+                                        }
+                                        _ => {}
+                                    }
+                                    continue;
+                                }
+
                                 match key.code {
+                                    KeyCode::Char('n') => {
+                                        state.explorer_input_mode = Some("File".to_string());
+                                        state.explorer_input.clear();
+                                    }
+                                    KeyCode::Char('f') => {
+                                        state.explorer_input_mode = Some("Directory".to_string());
+                                        state.explorer_input.clear();
+                                    }
                                     KeyCode::Esc => {
                                         state.mode = AppMode::Normal;
                                         state.focus_panel = FocusPanel::Editor;

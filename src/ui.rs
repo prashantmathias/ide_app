@@ -129,7 +129,31 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
             .collect();
 
         let list = List::new(items).block(block).style(Style::default().bg(COLOR_BG));
-        f.render_widget(list, explorer_rect);
+        
+        if let Some(ref mode) = state.explorer_input_mode {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(0), Constraint::Length(3)])
+                .split(explorer_rect);
+            
+            f.render_widget(list, chunks[0]);
+            
+            let input_block = Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(COLOR_YELLOW))
+                .title(format!(" New {} ", mode));
+                
+            let input_text = Paragraph::new(state.explorer_input.clone())
+                .block(input_block)
+                .style(Style::default().fg(COLOR_TEXT_PRIMARY));
+                
+            f.render_widget(input_text, chunks[1]);
+            
+            f.set_cursor_position((chunks[1].x + 1 + state.explorer_input.len() as u16, chunks[1].y + 1));
+        } else {
+            f.render_widget(list, explorer_rect);
+        }
     }
 
     // 2b. Render Editor
@@ -710,6 +734,22 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
             Line::from(vec![
                 Span::styled("  F10 / F11   ", Style::default().fg(COLOR_CYAN).bold()),
                 Span::styled("Step over / Step into", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  EXPLORER", Style::default().fg(COLOR_YELLOW).bold()),
+            ]),
+            Line::from(vec![
+                Span::styled("  n           ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("New file", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  f           ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("New directory", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  Enter       ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Open file", Style::default().fg(COLOR_TEXT_PRIMARY)),
             ]),
             Line::from(""),
             Line::from(vec![
