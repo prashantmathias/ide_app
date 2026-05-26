@@ -67,11 +67,18 @@ pub struct AppState {
     pub ai_chat_history: Vec<ChatMessage>,
     pub ai_chat_scroll: usize,
     pub show_help: bool,
+    
+    // AI Settings fields
+    pub ai_system_prompt: String,
+    pub ai_base_url: String,
+    pub ai_api_key: String,
+    pub show_ai_settings: bool,
+    pub ai_settings_focus_index: usize,
 }
 
 impl AppState {
     pub fn new() -> Self {
-        Self {
+        let mut app_state = Self {
             mode: AppMode::Normal,
             editor: EditorBuffer::new(),
             explorer_items: Vec::new(),
@@ -105,6 +112,41 @@ impl AppState {
             }],
             ai_chat_scroll: 0,
             show_help: false,
+            
+            ai_system_prompt: "You are a helpful AI assistant in the CodeCraft TUI IDE. Answer developer queries concisely. You have access to tools to interact with the workspace directory (list files, read, write, edit, and delete files, and install NPM packages). Use them autonomously when requested.".to_string(),
+            ai_base_url: "https://api.openai.com/v1/chat/completions".to_string(),
+            ai_api_key: String::new(),
+            show_ai_settings: false,
+            ai_settings_focus_index: 0,
+        };
+        app_state.load_ai_settings();
+        app_state
+    }
+
+    pub fn load_ai_settings(&mut self) {
+        if let Ok(content) = std::fs::read_to_string("ai_settings.json") {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(sp) = json["system_prompt"].as_str() {
+                    self.ai_system_prompt = sp.to_string();
+                }
+                if let Some(bu) = json["base_url"].as_str() {
+                    self.ai_base_url = bu.to_string();
+                }
+                if let Some(ak) = json["api_key"].as_str() {
+                    self.ai_api_key = ak.to_string();
+                }
+            }
+        }
+    }
+
+    pub fn save_ai_settings(&self) {
+        let json = serde_json::json!({
+            "system_prompt": self.ai_system_prompt,
+            "base_url": self.ai_base_url,
+            "api_key": self.ai_api_key,
+        });
+        if let Ok(s) = serde_json::to_string_pretty(&json) {
+            let _ = std::fs::write("ai_settings.json", s);
         }
     }
 

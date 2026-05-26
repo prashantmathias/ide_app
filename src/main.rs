@@ -225,11 +225,70 @@ async fn main() -> Result<(), io::Error> {
                             state.show_help = !state.show_help;
                             continue;
                         }
+                        if key.code == KeyCode::F(2) {
+                            if state.mode == AppMode::Insert {
+                                state.mode = AppMode::Normal;
+                            }
+                            state.show_ai_settings = !state.show_ai_settings;
+                            if !state.show_ai_settings {
+                                state.save_ai_settings();
+                            }
+                            continue;
+                        }
                         // Dismiss help overlay on any other key
                         if state.show_help {
                             state.show_help = false;
                             continue;
                         }
+                        
+                        // Settings overlay specific logic
+                        if state.show_ai_settings {
+                            if state.mode == AppMode::Normal {
+                                match key.code {
+                                    KeyCode::Esc => {
+                                        state.show_ai_settings = false;
+                                        state.save_ai_settings();
+                                    }
+                                    KeyCode::Up | KeyCode::Char('k') | KeyCode::BackTab => {
+                                        state.ai_settings_focus_index = state.ai_settings_focus_index.saturating_sub(1);
+                                    }
+                                    KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => {
+                                        if state.ai_settings_focus_index < 2 {
+                                            state.ai_settings_focus_index += 1;
+                                        }
+                                    }
+                                    KeyCode::Char('i') | KeyCode::Enter => {
+                                        state.mode = AppMode::Insert;
+                                    }
+                                    _ => {}
+                                }
+                            } else if state.mode == AppMode::Insert {
+                                match key.code {
+                                    KeyCode::Esc => {
+                                        state.mode = AppMode::Normal;
+                                    }
+                                    KeyCode::Char(c) => {
+                                        match state.ai_settings_focus_index {
+                                            0 => state.ai_system_prompt.push(c),
+                                            1 => state.ai_base_url.push(c),
+                                            2 => state.ai_api_key.push(c),
+                                            _ => {}
+                                        }
+                                    }
+                                    KeyCode::Backspace => {
+                                        match state.ai_settings_focus_index {
+                                            0 => { state.ai_system_prompt.pop(); }
+                                            1 => { state.ai_base_url.pop(); }
+                                            2 => { state.ai_api_key.pop(); }
+                                            _ => {}
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            continue;
+                        }
+
                         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('q') {
                             break;
                         }
@@ -862,10 +921,13 @@ fn send_ai_query(state: &mut AppState, tx_tui: mpsc::UnboundedSender<TuiEvent>) 
     // Collect context
     let history = state.ai_chat_history.clone();
     let tx_tui_clone = tx_tui.clone();
+    let sys_prompt = state.ai_system_prompt.clone();
+    let base_url = state.ai_base_url.clone();
+    let api_key = state.ai_api_key.clone();
     
     // Spawn task
     tokio::spawn(async move {
-        let result = call_openai_api(history, tx_tui_clone).await;
+        let result = call_openai_api(history, tx_tui_clone, sys_prompt, base_url, api_key).await;
         let _ = tx_tui.send(TuiEvent::Ai(AiEvent::Response(result)));
     });
 }
@@ -873,18 +935,25 @@ fn send_ai_query(state: &mut AppState, tx_tui: mpsc::UnboundedSender<TuiEvent>) 
 async fn call_openai_api(
     history: Vec<ChatMessage>,
     tx_tui: mpsc::UnboundedSender<TuiEvent>,
+    system_prompt: String,
+    base_url: String,
+    api_key: String,
 ) -> Result<String, String> {
-    let api_key = match get_openai_key() {
-        Some(key) => key,
-        None => {
-            return Err("OpenAI API key not found. Please set OPENAI_API_KEY environment variable or define it in a .env file.".to_string());
+    let active_key = if api_key.is_empty() {
+        match get_openai_key() {
+            Some(key) => key,
+            None => {
+                return Err("OpenAI API key not found. Please set OPENAI_API_KEY environment variable or define it in a .env file or Settings.".to_string());
+            }
         }
+    } else {
+        api_key
     };
     
     let mut messages = vec![
         serde_json::json!({
             "role": "system",
-            "content": "You are a helpful AI assistant in the CodeCraft TUI IDE. Answer developer queries concisely. You have access to tools to interact with the workspace directory (list files, read, write, edit, and delete files, and install NPM packages). Use them autonomously when requested."
+            "content": system_prompt
         })
     ];
     
@@ -1023,9 +1092,9 @@ async fn call_openai_api(
             "tools": tools
         });
 
-        let response = client.post("https://api.openai.com/v1/chat/completions")
+        let response = client.post(&base_url)
             .header("Content-Type", "application/json")
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {}", active_key))
             .json(&request_body)
             .send()
             .await

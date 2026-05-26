@@ -49,7 +49,7 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
     // 1. Render Header
     let header_text = Line::from(vec![
         Span::styled(" ┌─ Deno-TUI IDE ─┐ ", Style::default().fg(COLOR_BORDER_ACTIVE).bold()),
-        Span::styled("  [ Esc: Normal | i: Insert | : : Command | v: Explorer | F9: Run | F5: Debug | F1: Help ]  ", Style::default().fg(COLOR_TEXT_MUTED)),
+        Span::styled("  [ Esc: Normal | i: Insert | : : Command | v: Explorer | F9: Run | F5: Debug | F2: Settings | F1: Help ]  ", Style::default().fg(COLOR_TEXT_MUTED)),
     ]);
     let header = Paragraph::new(header_text).style(Style::default().bg(COLOR_BG));
     f.render_widget(header, main_chunks[0]);
@@ -667,6 +667,73 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
 
         let help_paragraph = Paragraph::new(help_lines).block(block);
         f.render_widget(help_paragraph, overlay_rect);
+    }
+
+    // ── AI Settings Overlay ──
+    if state.show_ai_settings {
+        let area = f.area();
+        let overlay_w: u16 = 60;
+        let overlay_h: u16 = 20;
+        let x = area.x + (area.width.saturating_sub(overlay_w)) / 2;
+        let y = area.y + (area.height.saturating_sub(overlay_h)) / 2;
+        let overlay_rect = Rect::new(x, y, overlay_w.min(area.width), overlay_h.min(area.height));
+
+        f.render_widget(Clear, overlay_rect);
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Double)
+            .border_style(Style::default().fg(COLOR_BORDER_ACTIVE))
+            .title(Span::styled(" AI Agent Settings ", Style::default().fg(COLOR_YELLOW).bold()))
+            .style(Style::default().bg(Color::Rgb(20, 24, 33)));
+
+        let inner_rect = block.inner(overlay_rect);
+        f.render_widget(block, overlay_rect);
+
+        let settings_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(8), // Prompt (multi-line)
+                Constraint::Length(3), // Base URL
+                Constraint::Length(3), // API Key
+                Constraint::Min(2),    // Instructions
+            ])
+            .split(inner_rect);
+
+        let is_insert = state.mode == AppMode::Insert;
+
+        let mut draw_field = |area: Rect, title: &str, value: &str, is_focused: bool, is_secret: bool| {
+            let border_color = if is_focused { COLOR_YELLOW } else { COLOR_BORDER_INACTIVE };
+            let fblock = Block::default().borders(Borders::ALL).border_style(Style::default().fg(border_color)).title(title);
+            let inner = fblock.inner(area);
+            
+            let display_val = if is_secret && (!is_focused || !is_insert) {
+                "*".repeat(value.len())
+            } else {
+                value.to_string()
+            };
+
+            let p = Paragraph::new(display_val).block(fblock).wrap(ratatui::widgets::Wrap { trim: false });
+            f.render_widget(p, area);
+
+            if is_focused && is_insert {
+                let cursor_x = inner.x + (value.len() as u16 % inner.width.max(1));
+                let cursor_y = inner.y + (value.len() as u16 / inner.width.max(1));
+                f.set_cursor_position((cursor_x, cursor_y));
+            }
+        };
+
+        draw_field(settings_chunks[0], " System Prompt ", &state.ai_system_prompt, state.ai_settings_focus_index == 0, false);
+        draw_field(settings_chunks[1], " Base URL ", &state.ai_base_url, state.ai_settings_focus_index == 1, false);
+        draw_field(settings_chunks[2], " API Key ", &state.ai_api_key, state.ai_settings_focus_index == 2, true);
+
+        let instr = if is_insert {
+            "Press ESC to save and exit insert mode."
+        } else {
+            "Up/Down to select. 'i' to edit. F2/ESC to close."
+        };
+        let p_instr = Paragraph::new(Span::styled(format!("  {}", instr), Style::default().fg(COLOR_TEXT_MUTED).italic()));
+        f.render_widget(p_instr, settings_chunks[3]);
     }
 }
 
