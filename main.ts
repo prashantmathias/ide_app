@@ -7,6 +7,11 @@ router.get("/", (ctx) => {
     ctx.response.body = "Hello from Oak!";
 });
 
+router.post("/echo", async (ctx) => {
+    const body = await ctx.request.body({ type: "json" }).value;
+    ctx.response.body = body;
+});
+
 app.use(router.routes());
 app.use(router.allowedMethods());
 

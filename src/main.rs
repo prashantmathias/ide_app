@@ -207,7 +207,7 @@ async fn main() -> Result<(), io::Error> {
                                     }
                                 }
                                 state.ai_status = "LISTENING".to_string();
-                                state.ai_chat_scroll = state.ai_chat_history.len() * 4;
+                                state.ai_chat_scroll = usize::MAX;
                             }
                             AiEvent::Log(msg) => {
                                 state.log(&msg);
@@ -215,7 +215,7 @@ async fn main() -> Result<(), io::Error> {
                                     sender: "A".to_string(),
                                     text: msg,
                                 });
-                                state.ai_chat_scroll = state.ai_chat_history.len() * 4;
+                                state.ai_chat_scroll = usize::MAX;
                             }
                         }
                     }
@@ -792,6 +792,13 @@ fn handle_mouse_event(
         MouseEventKind::ScrollUp => {
             let col = mouse.column;
             let row = mouse.row;
+            // AI panel scroll
+            if let Some((ax, ay, aw, ah)) = state.ai_rect {
+                if col >= ax && col < ax + aw && row >= ay && row < ay + ah {
+                    state.ai_chat_scroll = state.ai_chat_scroll.saturating_sub(1);
+                    return;
+                }
+            }
             if let Some((ex, ey, ew, eh)) = state.editor_rect {
                 if col >= ex && col < ex + ew && row >= ey && row < ey + eh
                     && state.editor.scroll_y > 0 {
@@ -802,6 +809,13 @@ fn handle_mouse_event(
         MouseEventKind::ScrollDown => {
             let col = mouse.column;
             let row = mouse.row;
+            // AI panel scroll
+            if let Some((ax, ay, aw, ah)) = state.ai_rect {
+                if col >= ax && col < ax + aw && row >= ay && row < ay + ah {
+                    state.ai_chat_scroll = state.ai_chat_scroll.saturating_add(1);
+                    return;
+                }
+            }
             if let Some((ex, ey, ew, eh)) = state.editor_rect {
                 if col >= ex && col < ex + ew && row >= ey && row < ey + eh
                     && state.editor.scroll_y + 1 < state.editor.lines.len() {
@@ -834,7 +848,7 @@ fn send_ai_query(state: &mut AppState, tx_tui: mpsc::UnboundedSender<TuiEvent>) 
     state.ai_status = "THINKING".to_string();
     
     // Auto scroll to bottom
-    state.ai_chat_scroll = state.ai_chat_history.len() * 4;
+    state.ai_chat_scroll = usize::MAX;
     
     // Collect context
     let history = state.ai_chat_history.clone();

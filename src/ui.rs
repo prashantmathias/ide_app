@@ -241,6 +241,9 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
 
         let inner_debug_rect = block.inner(debug_rect);
         
+        // Render outer block FIRST so inner widgets paint on top
+        f.render_widget(block, debug_rect);
+        
         // Split debugger panel vertically into Variables and Call Stack
         let debug_sub_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -297,8 +300,6 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
         }
         let stack_paragraph = Paragraph::new(stack_lines).block(stack_block).style(Style::default().bg(COLOR_BG));
         f.render_widget(stack_paragraph, debug_sub_chunks[1]);
-
-        f.render_widget(block, debug_rect);
     }
 
     // 2d. Render AI Agent Panel
@@ -320,6 +321,9 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
             
         let inner_ai_rect = block.inner(ai_rect);
         
+        // Render outer block FIRST so inner widgets paint on top
+        f.render_widget(block, ai_rect);
+        
         // Split AI panel vertically:
         // - Chat History (Min(3))
         // - Status Line (Length(1))
@@ -334,6 +338,7 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
             .split(inner_ai_rect);
             
         // Chat History
+        let chat_height = ai_sub_chunks[0].height as usize;
         let mut chat_lines = Vec::new();
         for msg in &state.ai_chat_history {
             if msg.sender == "U" {
@@ -348,6 +353,13 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
                 ]));
             }
             chat_lines.push(Line::from("")); // spacer
+        }
+        
+        // Auto-scroll: clamp so we don't scroll past the content
+        let total_chat_lines = chat_lines.len();
+        let max_scroll = total_chat_lines.saturating_sub(chat_height);
+        if state.ai_chat_scroll > max_scroll {
+            state.ai_chat_scroll = max_scroll;
         }
         
         let chat_paragraph = Paragraph::new(chat_lines)
@@ -392,7 +404,6 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
         ])).block(input_block).style(Style::default().bg(COLOR_BG));
         
         f.render_widget(input_widget, ai_sub_chunks[2]);
-        f.render_widget(block, ai_rect);
     }
 
     // 3. Render Bottom Panels (Output/Console Tabs)
@@ -497,7 +508,6 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
         Span::styled(deno_status_str, Style::default().fg(deno_status_color).bold()),
         Span::raw("  │  "),
         Span::styled(ln_col_str, Style::default().fg(COLOR_TEXT_PRIMARY)),
-        Span::styled(format!("  {:>width$}", state.time_string, width = (f.area().width as usize).saturating_sub(55)), Style::default().fg(COLOR_TEXT_MUTED)),
     ]);
     
     let status_bar = Paragraph::new(status_line).style(Style::default().bg(Color::Rgb(30, 41, 59)));
