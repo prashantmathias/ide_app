@@ -165,8 +165,8 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
     let editor_width = inner_editor_rect.width as usize;
 
     // Adjust editor scroll based on cursor position
-    // Line number gutter consumes 6 columns: " 123 │ "
-    let gutter_width = 7;
+    // Line number gutter: bp_span(2) + pointer_span(2) + num_str("{:>3} │ " = 6) = 10
+    let gutter_width = 10;
     let code_display_width = if editor_width > gutter_width { editor_width - gutter_width } else { 1 };
     state.editor.adjust_scroll(editor_height, code_display_width);
 

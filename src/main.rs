@@ -735,7 +735,7 @@ fn handle_mouse_event(
                     }
 
                     if let Some((ix, iy, _iw, ih)) = state.editor_inner_rect {
-                        let gutter_width = 7;
+                        let gutter_width = 10;
                         
                         if row >= iy && row < iy + ih {
                             let clicked_line_offset = (row - iy) as usize;
