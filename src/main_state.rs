@@ -1,0 +1,107 @@
+use std::path::PathBuf;
+use crate::debugger::{DebugCallFrame, DebugVariable};
+use crate::editor::EditorBuffer;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppMode {
+    Normal,
+    Insert,
+    Command,
+    Explorer,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusPanel {
+    Editor,
+    Explorer,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BottomTab {
+    Output,
+    Console,
+}
+
+pub struct ExplorerItem {
+    pub name: String,
+    pub path: PathBuf,
+    pub is_dir: bool,
+}
+
+pub struct AppState {
+    pub mode: AppMode,
+    pub editor: EditorBuffer,
+    pub explorer_items: Vec<ExplorerItem>,
+    pub explorer_selected: usize,
+    pub command_text: String,
+    pub console_output: Vec<String>,
+    pub system_logs: Vec<String>,
+    pub is_debugging: bool,
+    pub is_paused: bool,
+    pub paused_line: Option<usize>,
+    pub call_frames: Vec<DebugCallFrame>,
+    pub debug_variables: Vec<DebugVariable>,
+    pub breakpoints: Vec<usize>, // 1-indexed
+    pub active_bottom_tab: BottomTab,
+    pub show_sidebar: bool,
+    pub focus_panel: FocusPanel,
+    pub time_string: String,
+}
+
+impl AppState {
+    pub fn new() -> Self {
+        Self {
+            mode: AppMode::Normal,
+            editor: EditorBuffer::new(),
+            explorer_items: Vec::new(),
+            explorer_selected: 0,
+            command_text: String::new(),
+            console_output: vec!["$ Deno TUI IDE initialized.".to_string()],
+            system_logs: vec!["[System] App started".to_string()],
+            is_debugging: false,
+            is_paused: false,
+            paused_line: None,
+            call_frames: Vec::new(),
+            debug_variables: Vec::new(),
+            breakpoints: Vec::new(),
+            active_bottom_tab: BottomTab::Output,
+            show_sidebar: true,
+            focus_panel: FocusPanel::Editor,
+            time_string: "00:00:00".to_string(),
+        }
+    }
+
+    pub fn log(&mut self, msg: impl Into<String>) {
+        self.system_logs.push(msg.into());
+    }
+
+    pub fn output(&mut self, msg: impl Into<String>) {
+        self.console_output.push(msg.into());
+    }
+
+    pub fn read_workspace_dir(&mut self) {
+        let mut items = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(".") {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with('.') || name == "target" || name == "node_modules" {
+                    continue;
+                }
+                let path = entry.path();
+                let is_dir = path.is_dir();
+                items.push(ExplorerItem { name, path, is_dir });
+            }
+        }
+        // Directories first, then files alphabetically
+        items.sort_by(|a, b| {
+            b.is_dir.cmp(&a.is_dir)
+                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        });
+        self.explorer_items = items;
+        
+        // Clamp explorer_selected
+        if self.explorer_selected >= self.explorer_items.len() && !self.explorer_items.is_empty() {
+            self.explorer_selected = self.explorer_items.len() - 1;
+        }
+    }
+}
