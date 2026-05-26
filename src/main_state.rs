@@ -15,12 +15,14 @@ pub enum FocusPanel {
     Editor,
     Explorer,
     AiInput,
+    TerminalInput,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BottomTab {
     Output,
     Console,
+    Terminal,
 }
 
 pub struct ExplorerItem {
@@ -75,6 +77,11 @@ pub struct AppState {
     pub ai_model: String,
     pub show_ai_settings: bool,
     pub ai_settings_focus_index: usize,
+
+    // Terminal fields
+    pub terminal_output: Vec<String>,
+    pub terminal_input: String,
+    pub terminal_scroll: usize,
 }
 
 impl AppState {
@@ -120,6 +127,10 @@ impl AppState {
             ai_model: "gpt-4o".to_string(),
             show_ai_settings: false,
             ai_settings_focus_index: 0,
+
+            terminal_output: vec!["CodeCraft Terminal (Powershell command runner)".to_string()],
+            terminal_input: String::new(),
+            terminal_scroll: 0,
         };
         app_state.load_ai_settings();
         app_state

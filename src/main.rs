@@ -23,6 +23,7 @@ enum TuiEvent {
     Deno(DenoEvent),
     Tick,
     Ai(AiEvent),
+    Terminal(String),
 }
 
 enum AiEvent {
@@ -219,6 +220,10 @@ async fn main() -> Result<(), io::Error> {
                             }
                         }
                     }
+                    TuiEvent::Terminal(line) => {
+                        state.terminal_output.push(line);
+                        // Optional: auto scroll
+                    }
                     TuiEvent::Key(key) => {
                         // Global keybindings
                         if key.code == KeyCode::F(1) {
@@ -312,7 +317,7 @@ async fn main() -> Result<(), io::Error> {
                                 match key.code {
                                     KeyCode::Char('i') => {
                                         state.mode = AppMode::Insert;
-                                        if state.focus_panel != FocusPanel::AiInput {
+                                        if state.focus_panel != FocusPanel::AiInput && state.focus_panel != FocusPanel::TerminalInput {
                                             state.focus_panel = FocusPanel::Editor;
                                         }
                                         state.log("Mode: INSERT");
@@ -344,11 +349,14 @@ async fn main() -> Result<(), io::Error> {
                                                     FocusPanel::Editor
                                                 }
                                             }
+                                            FocusPanel::TerminalInput => FocusPanel::Editor,
                                             FocusPanel::Explorer => FocusPanel::Editor,
                                         };
                                         state.focus_panel = next_panel;
                                         if next_panel == FocusPanel::Explorer {
                                             state.mode = AppMode::Explorer;
+                                        } else if next_panel == FocusPanel::TerminalInput {
+                                            state.mode = AppMode::Normal;
                                         } else {
                                             state.mode = AppMode::Normal;
                                         }
@@ -408,13 +416,16 @@ async fn main() -> Result<(), io::Error> {
                                     KeyCode::Char('1') => {
                                         state.active_bottom_tab = BottomTab::Output;
                                     }
-                                    KeyCode::Char('2') => {
-                                        state.active_bottom_tab = BottomTab::Console;
+                                    KeyCode::Char('3') => {
+                                        state.active_bottom_tab = BottomTab::Terminal;
+                                        state.focus_panel = FocusPanel::TerminalInput;
                                     }
                                     // Navigation
                                     KeyCode::Up | KeyCode::Char('k') => {
                                         if state.focus_panel == FocusPanel::AiInput {
                                             state.ai_chat_scroll = state.ai_chat_scroll.saturating_sub(1);
+                                        } else if state.focus_panel == FocusPanel::TerminalInput {
+                                            state.terminal_scroll = state.terminal_scroll.saturating_sub(1);
                                         } else {
                                             state.editor.move_cursor_up();
                                         }
@@ -422,33 +433,37 @@ async fn main() -> Result<(), io::Error> {
                                     KeyCode::Down | KeyCode::Char('j') => {
                                         if state.focus_panel == FocusPanel::AiInput {
                                             state.ai_chat_scroll = state.ai_chat_scroll.saturating_add(1);
+                                        } else if state.focus_panel == FocusPanel::TerminalInput {
+                                            state.terminal_scroll = state.terminal_scroll.saturating_add(1);
                                         } else {
                                             state.editor.move_cursor_down();
                                         }
                                     }
                                     KeyCode::Left | KeyCode::Char('h') => {
-                                        if state.focus_panel != FocusPanel::AiInput {
+                                        if state.focus_panel != FocusPanel::AiInput && state.focus_panel != FocusPanel::TerminalInput {
                                             state.editor.move_cursor_left();
                                         }
                                     }
                                     KeyCode::Right | KeyCode::Char('l') => {
-                                        if state.focus_panel != FocusPanel::AiInput {
+                                        if state.focus_panel != FocusPanel::AiInput && state.focus_panel != FocusPanel::TerminalInput {
                                             state.editor.move_cursor_right();
                                         }
                                     }
                                     KeyCode::Delete | KeyCode::Char('x') => {
-                                        if state.focus_panel != FocusPanel::AiInput {
+                                        if state.focus_panel != FocusPanel::AiInput && state.focus_panel != FocusPanel::TerminalInput {
                                             state.editor.delete();
                                         }
                                     }
                                     KeyCode::Backspace => {
-                                        if state.focus_panel != FocusPanel::AiInput {
+                                        if state.focus_panel != FocusPanel::AiInput && state.focus_panel != FocusPanel::TerminalInput {
                                             state.editor.move_cursor_left();
                                         }
                                     }
                                     KeyCode::Enter => {
                                         if state.focus_panel == FocusPanel::AiInput {
                                             send_ai_query(&mut state, tx_tui.clone());
+                                        } else if state.focus_panel == FocusPanel::TerminalInput {
+                                            execute_terminal_command(&mut state, tx_tui.clone());
                                         }
                                     }
                                     _ => {}
@@ -463,18 +478,22 @@ async fn main() -> Result<(), io::Error> {
                                     KeyCode::Char(c) => {
                                         if state.focus_panel == FocusPanel::AiInput {
                                             state.ai_input.push(c);
+                                        } else if state.focus_panel == FocusPanel::TerminalInput {
+                                            state.terminal_input.push(c);
                                         } else {
                                             state.editor.insert_char(c);
                                         }
                                     }
                                     KeyCode::Tab => {
-                                        if state.focus_panel != FocusPanel::AiInput {
+                                        if state.focus_panel != FocusPanel::AiInput && state.focus_panel != FocusPanel::TerminalInput {
                                             state.editor.insert_tab();
                                         }
                                     }
                                     KeyCode::Enter => {
                                         if state.focus_panel == FocusPanel::AiInput {
                                             send_ai_query(&mut state, tx_tui.clone());
+                                        } else if state.focus_panel == FocusPanel::TerminalInput {
+                                            execute_terminal_command(&mut state, tx_tui.clone());
                                         } else {
                                             state.editor.insert_newline();
                                         }
@@ -482,18 +501,22 @@ async fn main() -> Result<(), io::Error> {
                                     KeyCode::Backspace => {
                                         if state.focus_panel == FocusPanel::AiInput {
                                             state.ai_input.pop();
+                                        } else if state.focus_panel == FocusPanel::TerminalInput {
+                                            state.terminal_input.pop();
                                         } else {
                                             state.editor.backspace();
                                         }
                                     }
                                     KeyCode::Delete => {
-                                        if state.focus_panel != FocusPanel::AiInput {
+                                        if state.focus_panel != FocusPanel::AiInput && state.focus_panel != FocusPanel::TerminalInput {
                                             state.editor.delete();
                                         }
                                     }
                                     KeyCode::Up => {
                                         if state.focus_panel == FocusPanel::AiInput {
                                             state.ai_chat_scroll = state.ai_chat_scroll.saturating_sub(1);
+                                        } else if state.focus_panel == FocusPanel::TerminalInput {
+                                            // Handle bash history up?
                                         } else {
                                             state.editor.move_cursor_up();
                                         }
@@ -501,17 +524,19 @@ async fn main() -> Result<(), io::Error> {
                                     KeyCode::Down => {
                                         if state.focus_panel == FocusPanel::AiInput {
                                             state.ai_chat_scroll = state.ai_chat_scroll.saturating_add(1);
+                                        } else if state.focus_panel == FocusPanel::TerminalInput {
+                                            // Handle bash history down?
                                         } else {
                                             state.editor.move_cursor_down();
                                         }
                                     }
                                     KeyCode::Left => {
-                                        if state.focus_panel != FocusPanel::AiInput {
+                                        if state.focus_panel != FocusPanel::AiInput && state.focus_panel != FocusPanel::TerminalInput {
                                             state.editor.move_cursor_left();
                                         }
                                     }
                                     KeyCode::Right => {
-                                        if state.focus_panel != FocusPanel::AiInput {
+                                        if state.focus_panel != FocusPanel::AiInput && state.focus_panel != FocusPanel::TerminalInput {
                                             state.editor.move_cursor_right();
                                         }
                                     }
@@ -1333,4 +1358,68 @@ mod tests {
         assert!(del_res.is_ok());
         assert!(!run_list_directory().unwrap().contains(test_file));
     }
+}
+
+fn execute_terminal_command(state: &mut AppState, tx_tui: mpsc::UnboundedSender<TuiEvent>) {
+    let cmd = state.terminal_input.trim().to_string();
+    if cmd.is_empty() {
+        return;
+    }
+    
+    // Add to output
+    state.terminal_output.push(format!("$ {}", cmd));
+    state.terminal_input.clear();
+    
+    // Spawn task to run command
+    tokio::spawn(async move {
+        use std::process::Stdio;
+        use tokio::io::{AsyncBufReadExt, BufReader};
+        use tokio::process::Command;
+        
+        let child = if cfg!(target_os = "windows") {
+            Command::new("powershell")
+                .arg("-Command")
+                .arg(&cmd)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+        } else {
+            Command::new("sh")
+                .arg("-c")
+                .arg(&cmd)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+        };
+        
+        match child {
+            Ok(mut process) => {
+                let stdout = process.stdout.take().unwrap();
+                let stderr = process.stderr.take().unwrap();
+                
+                let tx1 = tx_tui.clone();
+                let tx2 = tx_tui.clone();
+                
+                let out_task = tokio::spawn(async move {
+                    let mut reader = BufReader::new(stdout).lines();
+                    while let Ok(Some(line)) = reader.next_line().await {
+                        let _ = tx1.send(TuiEvent::Terminal(line));
+                    }
+                });
+                
+                let err_task = tokio::spawn(async move {
+                    let mut reader = BufReader::new(stderr).lines();
+                    while let Ok(Some(line)) = reader.next_line().await {
+                        let _ = tx2.send(TuiEvent::Terminal(format!("ERR: {}", line)));
+                    }
+                });
+                
+                let _ = tokio::join!(out_task, err_task);
+                let _ = process.wait().await;
+            }
+            Err(e) => {
+                let _ = tx_tui.send(TuiEvent::Terminal(format!("Failed to execute command: {}", e)));
+            }
+        }
+    });
 }

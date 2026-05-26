@@ -415,11 +415,17 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
         f.render_widget(input_widget, ai_sub_chunks[2]);
     }
 
-    // 3. Render Bottom Panels (Output/Console Tabs)
-    let bottom_border_style = Style::default().fg(COLOR_BORDER_INACTIVE);
+    // 3. Render Bottom Panels (Output/Console/Terminal Tabs)
+    let bottom_border_style = if state.focus_panel == FocusPanel::TerminalInput {
+        Style::default().fg(COLOR_BORDER_ACTIVE)
+    } else {
+        Style::default().fg(COLOR_BORDER_INACTIVE)
+    };
+    
     let tab_title = match state.active_bottom_tab {
-        BottomTab::Output => " [1: OUTPUT (Active)]  2: CONSOLE ",
-        BottomTab::Console => " 1: OUTPUT  [2: CONSOLE (Active)] ",
+        BottomTab::Output => " [1: OUTPUT (Active)]  2: CONSOLE  3: TERMINAL ",
+        BottomTab::Console => " 1: OUTPUT  [2: CONSOLE (Active)]  3: TERMINAL ",
+        BottomTab::Terminal => " 1: OUTPUT  2: CONSOLE  [3: TERMINAL (Active)] ",
     };
     
     let bottom_block = Block::default()
@@ -475,10 +481,66 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
                 })
                 .collect()
         }
+        BottomTab::Terminal => {
+            // We will render this explicitly below because it has an input field.
+            vec![]
+        }
     };
 
-    let bottom_paragraph = Paragraph::new(bottom_lines).block(bottom_block).style(Style::default().bg(COLOR_BG));
-    f.render_widget(bottom_paragraph, body_chunks[1]);
+    if state.active_bottom_tab != BottomTab::Terminal {
+        let bottom_paragraph = Paragraph::new(bottom_lines).block(bottom_block).style(Style::default().bg(COLOR_BG));
+        f.render_widget(bottom_paragraph, body_chunks[1]);
+    } else {
+        // Render Terminal Tab
+        f.render_widget(bottom_block, body_chunks[1]);
+        
+        let term_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(1),    // Output
+                Constraint::Length(1), // Input
+            ])
+            .split(inner_bottom_rect);
+            
+        let term_out_height = term_chunks[0].height as usize;
+        let start = if state.terminal_output.len() > term_out_height {
+            state.terminal_output.len() - term_out_height
+        } else {
+            0
+        };
+        let out_lines: Vec<Line> = state.terminal_output[start..]
+            .iter()
+            .map(|line| Line::from(Span::styled(line, Style::default().fg(COLOR_TEXT_PRIMARY))))
+            .collect();
+            
+        let out_paragraph = Paragraph::new(out_lines).style(Style::default().bg(COLOR_BG));
+        f.render_widget(out_paragraph, term_chunks[0]);
+        
+        // Input line
+        let prompt_style = if state.focus_panel == FocusPanel::TerminalInput {
+            Style::default().fg(COLOR_YELLOW).bold()
+        } else {
+            Style::default().fg(COLOR_TEXT_MUTED)
+        };
+        let input_text = if state.terminal_input.is_empty() && state.focus_panel != FocusPanel::TerminalInput {
+            Span::styled("Type command...", Style::default().fg(COLOR_TEXT_MUTED).italic())
+        } else {
+            Span::styled(&state.terminal_input, Style::default().fg(COLOR_TEXT_PRIMARY))
+        };
+        
+        let in_paragraph = Paragraph::new(Line::from(vec![
+            Span::styled("$ ", prompt_style),
+            input_text
+        ])).style(Style::default().bg(COLOR_BG));
+        f.render_widget(in_paragraph, term_chunks[1]);
+        
+        // Handle cursor placement
+        if state.focus_panel == FocusPanel::TerminalInput && (state.mode == AppMode::Insert || state.mode == AppMode::Normal) {
+            let cursor_x = term_chunks[1].x + 2 + state.terminal_input.len() as u16;
+            let cursor_y = term_chunks[1].y;
+            f.set_cursor_position((cursor_x, cursor_y));
+        }
+    }
 
     // 4. Render Footer Status Bar
     let mode_str = match state.mode {
