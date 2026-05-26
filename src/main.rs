@@ -221,6 +221,15 @@ async fn main() -> Result<(), io::Error> {
                     }
                     TuiEvent::Key(key) => {
                         // Global keybindings
+                        if key.code == KeyCode::F(1) {
+                            state.show_help = !state.show_help;
+                            continue;
+                        }
+                        // Dismiss help overlay on any other key
+                        if state.show_help {
+                            state.show_help = false;
+                            continue;
+                        }
                         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('q') {
                             break;
                         }

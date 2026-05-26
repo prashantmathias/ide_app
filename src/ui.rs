@@ -1,9 +1,9 @@
 use crate::main_state::{AppMode, AppState, BottomTab, FocusPanel};
 use ratatui::{
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, Borders, BorderType, List, ListItem, Paragraph},
+    widgets::{Block, Borders, BorderType, Clear, List, ListItem, Paragraph},
     Frame,
 };
 
@@ -49,7 +49,7 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
     // 1. Render Header
     let header_text = Line::from(vec![
         Span::styled(" ┌─ Deno-TUI IDE ─┐ ", Style::default().fg(COLOR_BORDER_ACTIVE).bold()),
-        Span::styled("  [ Esc: Normal | i: Insert | : : Command | v: Explorer | F9: Run | F5: Debug ]  ", Style::default().fg(COLOR_TEXT_MUTED)),
+        Span::styled("  [ Esc: Normal | i: Insert | : : Command | v: Explorer | F9: Run | F5: Debug | F1: Help ]  ", Style::default().fg(COLOR_TEXT_MUTED)),
     ]);
     let header = Paragraph::new(header_text).style(Style::default().bg(COLOR_BG));
     f.render_widget(header, main_chunks[0]);
@@ -355,9 +355,18 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
             chat_lines.push(Line::from("")); // spacer
         }
         
-        // Auto-scroll: clamp so we don't scroll past the content
-        let total_chat_lines = chat_lines.len();
-        let max_scroll = total_chat_lines.saturating_sub(chat_height);
+        // Calculate the actual visual line count accounting for wrapping
+        let content_width = ai_sub_chunks[0].width as usize;
+        let mut total_visual_lines: usize = 0;
+        for line in &chat_lines {
+            let char_count: usize = line.spans.iter().map(|s| s.content.len()).sum();
+            if content_width > 0 && char_count > content_width {
+                total_visual_lines += (char_count + content_width - 1) / content_width;
+            } else {
+                total_visual_lines += 1;
+            }
+        }
+        let max_scroll = total_visual_lines.saturating_sub(chat_height);
         if state.ai_chat_scroll > max_scroll {
             state.ai_chat_scroll = max_scroll;
         }
@@ -550,6 +559,114 @@ pub fn draw_ui(f: &mut Frame, state: &mut AppState) {
         let cursor_screen_y = main_chunks[3].y;
         let cursor_screen_x = main_chunks[3].x + 1 + state.command_text.len() as u16;
         f.set_cursor_position((cursor_screen_x, cursor_screen_y));
+    }
+
+    // ── Help Overlay ──
+    if state.show_help {
+        let area = f.area();
+        let overlay_w: u16 = 56;
+        let overlay_h: u16 = 28;
+        let x = area.x + (area.width.saturating_sub(overlay_w)) / 2;
+        let y = area.y + (area.height.saturating_sub(overlay_h)) / 2;
+        let overlay_rect = Rect::new(x, y, overlay_w.min(area.width), overlay_h.min(area.height));
+
+        // Clear the area behind the overlay
+        f.render_widget(Clear, overlay_rect);
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Double)
+            .border_style(Style::default().fg(COLOR_BORDER_ACTIVE))
+            .title(Span::styled(" ⌨ Keyboard Shortcuts ", Style::default().fg(COLOR_YELLOW).bold()))
+            .style(Style::default().bg(Color::Rgb(20, 24, 33)));
+
+        let help_lines = vec![
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  GENERAL", Style::default().fg(COLOR_YELLOW).bold()),
+            ]),
+            Line::from(vec![
+                Span::styled("  F1          ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Toggle this help", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  Ctrl+Q      ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Quit", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  Ctrl+A      ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Toggle AI panel", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  Esc         ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Return to Normal mode", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  NAVIGATION (Normal mode)", Style::default().fg(COLOR_YELLOW).bold()),
+            ]),
+            Line::from(vec![
+                Span::styled("  Tab         ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Cycle panel focus", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  i           ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Enter Insert mode", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  v           ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Open file explorer", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  :           ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Command mode (:w :q :r :d :bp)", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  1 / 2       ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Switch Output / Console tab", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  EDITOR", Style::default().fg(COLOR_YELLOW).bold()),
+            ]),
+            Line::from(vec![
+                Span::styled("  ↑↓←→ / hjkl", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("  Move cursor", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  b           ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Toggle breakpoint", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  F9          ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Run script", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  F5          ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Debug / Resume", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  F10 / F11   ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Step over / Step into", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  AI PANEL", Style::default().fg(COLOR_YELLOW).bold()),
+            ]),
+            Line::from(vec![
+                Span::styled("  Enter       ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Send message to AI", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(vec![
+                Span::styled("  ↑ / ↓       ", Style::default().fg(COLOR_CYAN).bold()),
+                Span::styled("Scroll chat history", Style::default().fg(COLOR_TEXT_PRIMARY)),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled("       Press any key to close       ", Style::default().fg(COLOR_TEXT_MUTED).italic())),
+        ];
+
+        let help_paragraph = Paragraph::new(help_lines).block(block);
+        f.render_widget(help_paragraph, overlay_rect);
     }
 }
 

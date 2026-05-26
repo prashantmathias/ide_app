@@ -66,6 +66,7 @@ pub struct AppState {
     pub ai_input: String,
     pub ai_chat_history: Vec<ChatMessage>,
     pub ai_chat_scroll: usize,
+    pub show_help: bool,
 }
 
 impl AppState {
@@ -103,6 +104,7 @@ impl AppState {
                 text: "Hello! I am your CodeCraft assistant. How can I help you optimize your workspace today?".to_string(),
             }],
             ai_chat_scroll: 0,
+            show_help: false,
         }
     }
 
