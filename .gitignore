@@ -27,3 +27,4 @@ target
 target/*
 target_build
 deno-tui-ide.exe
+codecraft.exe
